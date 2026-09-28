@@ -82,6 +82,8 @@ trace 生命周期属于 daemon，不绑定浏览器连接。前端重连后查�
 
 ### 版本与状态
 
+紧凑协议继续使用 API v1，不引入 v2 路径。旧预览 Release 撤下，保留 Git 标签与提交历史作为追溯；本次不保留旧线格式兼容分支。API 主版本不再单独证明线格式兼容，建链须同时检查紧凑 schema 标识，旧客户端、旧 daemon 和既有历史按各自版本明确处理。删除 Release 不会更新已部署的 Pages；待新协议和匹配前端完成后重新签名、发布并部署。
+
 软件、HTTP API、样本 schema 分别版本化。首版通过 v1 capabilities 握手，不可用或范围不匹配即拒绝数据连接。sample.status 与任务状态分离：timed_out/degraded 是任务状态，沿用旧值时 sample.status 为 stale。Prometheus 将 rate 映射为 gauge，counter 映射为 counter，不直接暴露未知类型。
 
 ## Risks / Trade-offs

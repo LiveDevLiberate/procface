@@ -1,8 +1,8 @@
 # 发布操作
 
-当前已发布签名预览版 `v0.1.0-preview.1`，尚未发布稳定版。仓库为 https://github.com/LiveDevLiberate/procface ，已公开。Pages 已部署到 https://livedevliberate.github.io/procface/ 。发布密钥已由维护者在仓库外生成并用于本地签名，Pages 只配置可信公钥；目标板验收和最低内核验证仍须落实。
+2026-09-28 已按维护者决定删除旧预览 Release `v0.1.0-preview.1` 及其附件，保留 Git 标签与提交历史；当前没有可下载的 GitHub Release。紧凑协议继续使用 API v1，新产物待实现并验证后发布。仓库为 https://github.com/LiveDevLiberate/procface ，已公开。Pages 位于 https://livedevliberate.github.io/procface/ ，仍运行旧预览 HTML，删除 Release 不会更新或撤下站点。发布密钥已由维护者在仓库外生成并用于本地签名，Pages 只配置可信公钥；目标板验收和最低内核验证仍须落实。
 
-2026-09-28 首次部署记录：Release 与线上 HTML 字节一致，在线文件的 Ed25519 签名验证通过，SHA-256 为 `4ae7ab9fffb77a78810e4c4dab3ae8445fedad19c4d7cc80696a28925b619354`。部署运行：https://github.com/LiveDevLiberate/procface/actions/runs/36433370686 。发布公钥为 `U30NiFFqHG7qq96W1V34mHuPxs23qFiVp7R6eYw6gkQ=`；daemon 使用前应通过维护者确认此信任根。此次上线与下载校验不替代浏览器连接真实设备及四架构目标板验收。
+历史记录（对应 Release 已撤下）：2026-09-28 首次部署时，Release 与线上 HTML 字节一致，在线文件的 Ed25519 签名验证通过，SHA-256 为 `4ae7ab9fffb77a78810e4c4dab3ae8445fedad19c4d7cc80696a28925b619354`。部署运行：https://github.com/LiveDevLiberate/procface/actions/runs/36433370686 。发布公钥为 `U30NiFFqHG7qq96W1V34mHuPxs23qFiVp7R6eYw6gkQ=`；daemon 使用前应通过维护者确认此信任根。此次上线与下载校验不替代浏览器连接真实设备及四架构目标板验收。
 
 ## 前置条件
 

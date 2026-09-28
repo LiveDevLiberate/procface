@@ -63,7 +63,7 @@
 - [x] 7.8 实现初次连接及重新建链的版本、构建 ID 和内嵌签名版本声明提交及拒绝原因展示，支持显式开发调试状态，避免将检查结果描述为运行代码完整性证明
 - [ ] 7.9 验证 GitHub Pages、本地文件和开发机静态托管入口，提供跨域及浏览器网络限制排查提示，离线建链不依赖 GitHub
 - [ ] 7.10 后续前端优化阶段实现“总览 / 进程 / Trace”三标签页、公共连接与历史工具栏及 ASCII 终端风格；验证分组图表、数值列稳定、刷新无空白帧、Trace 展开状态保留，以及切页不影响订阅、Trace 和历史保存。本轮只确认规范，不实施或发布布局改造
-- [ ] 7.11 后续协议优化阶段实现 API 统一紧凑 JSON：稳定 metric/entity/group/status 目录、数组位置校验、current/series/stream/export 统一解码、前端展开显示和旧数据版本拒绝；CLI 保持直接输出可读 JSON/JSONL/TSV/table，测量 API JSON 大小与重连补偿开销
+- [ ] 7.11 后续协议优化阶段保持 API v1，实现 API 统一紧凑 JSON 和建链 schema 兼容校验，不保留旧预览线格式分支：稳定 metric/entity/group/status 目录、数组位置校验、current/series/stream/export 统一解码、前端展开显示和旧数据版本拒绝；CLI 保持直接输出可读 JSON/JSONL/TSV/table，测量 API JSON 大小与重连补偿开销
 
 ## 8. 集成验证与发布
 
