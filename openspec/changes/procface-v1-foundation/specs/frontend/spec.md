@@ -2,6 +2,22 @@
 
 ## ADDED Requirements
 
+### Requirement: 三标签页与 ASCII 终端风格
+
+前端 MUST 使用“总览 / 进程 / Trace”三个标签页。公共连接栏 MUST 显示设备、连接状态、采样间隔与 uptime，连接成功后收起可重新展开的连接配置。历史会话选择、实时/回看和导出 MUST 放在公共工具栏。
+
+总览 MUST 按 CPU、负载、内存、磁盘和网络分组展示图表，并提供展开更多指标的入口。进程页 MUST 使用紧凑的 top 风格表格，保留筛选、排序和选择 Trace 操作。Trace 页 MUST 展示当前 PID、开始/停止控制、进程曲线和可折叠的详细信息。
+
+界面 MUST 采用等宽字体、黑白灰为主的配色、细线边框，无阴影和圆角；按钮使用类似 `[连接]` 的文本样式，状态以文字标识。图表 MUST 保留细线曲线和坐标，不强制转为字符画。颜色 MAY 辅助区分曲线、错误和断链，但 MUST NOT 作为唯一提示。数值列 MUST 右对齐并保持宽度稳定；实时刷新 MUST 避免先清空再显示造成的空白帧，保留正在查看的 Trace 展开状态。
+
+#### Scenario: 切换标签页
+- **WHEN** 用户在总览、进程和 Trace 标签页之间切换
+- **THEN** 前端 MUST 只改变展示，普通数据订阅、当前 Trace 和历史保存继续运行，已有历史不得清空
+
+#### Scenario: 实时刷新详细信息
+- **WHEN** 新样本到达且用户已展开 Trace 详情
+- **THEN** 页面 MUST 保留展开状态，更新数值而不造成整页布局跳动或图表空白帧
+
 ### Requirement: Single-file frontend
 
 前端 MUST 作为独立单体 HTML 从 GitHub 发布，HTML、CSS、JavaScript 和图表逻辑全部内嵌，不依赖 CDN。网页启动时 MUST 允许填写 daemon IP、端口和 token。

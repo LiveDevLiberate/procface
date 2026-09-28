@@ -28,6 +28,23 @@ const html=path.resolve(__dirname,'../web/procface-web.html');
   assert.match(await page.locator('#message').innerText(),/2\.0\.0/);
   assert.deepEqual(requests,['/api/v1/capabilities']);
   await page.unroute('http://device.test/**');
+  // 实时更新不得替换 canvas、进程行或折叠正在查看的 Trace。
+  await page.evaluate(()=>{
+   resetView();
+   const sample=(metric,entity='system')=>({metric,entity,value:10,uptime_s:1,sequence:1,unit:'bytes',status:'ok'});
+   plotBatch({group:'system',samples:[...Array.from(defaultMetrics,m=>sample(m,m==='cpu.usage'?'cpu':'system')),sample('network.rx_bytes_per_second','eth1'),sample('vm.page_in_bytes')]});
+   latestProcesses=[{identity:{pid:42,starttime_ticks:1},name:'stable',state:'R',cpu_percent:1,rss_bytes:100,threads:1}];
+   render();
+   const canvas=$('charts').querySelector('canvas'),row=$('processes').firstChild;
+   if($('charts').children.length!==defaultMetrics.size+1)throw Error('默认指标或多设备覆盖不足');
+   renderTraceFields({samples:[sample('trace.status')]});
+   const detail=$('traceFields').firstChild;detail.open=true;
+   render();renderTraceFields({samples:[sample('trace.status')]});
+   if(canvas!==$('charts').querySelector('canvas')||row!==$('processes').firstChild||detail!==$('traceFields').firstChild||!detail.open)throw Error('实时刷新替换了可视节点');
+   $('allCharts').click();render();
+   if($('charts').children.length!==points.size)throw Error('全部指标未覆盖');
+   resetView();
+  });
   const result=await page.evaluate(async()=>{
    base='http://device.test';session='test';viewSession=base+'|'+session;
    function batch(n){return {session_id:session,sequence:n,uptime_s:n,group:'process',complete:true,processes:[{identity:{pid:n},name:'p'+n,state:'R',cpu_percent:n,rss_bytes:n,threads:1}],samples:[{session_id:session,sequence:n,uptime_s:n,metric:'cpu.usage',entity:'cpu',value:n,unit:'percent',status:'ok'}]};}
