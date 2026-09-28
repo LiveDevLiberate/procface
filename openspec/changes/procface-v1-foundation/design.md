@@ -36,7 +36,11 @@ CLI 的 sample、trace、capabilities 与 daemon 直接复用同一 procfs 解�
 
 ### 流与历史
 
-API 机器可读数据统一采用紧凑 JSON 数组，不让 HTTP current/series/stream/export 各自定义格式。批次使用 `[sequence, uptime, timestamp_unix, group_id, complete, diagnostics, dictionary_delta, samples]`，样本使用 `[metric_id, entity_id, value, status_id]`。新进程、网卡或磁盘的字典增量先于样本发送，历史和重连响应带齐初始目录及增量。CLI 是人类入口，直接输出带字段名的展开 JSON/JSONL/TSV/table；TSV API 和 Prometheus 也保持可读协议。后续可在相同 API 数据模型上增加 CBOR/MessagePack，不改变语义。
+API 机器可读数据统一采用紧凑 JSON 数组，不让 HTTP current/series/stream/export 各自定义格式。批次使用 `[sequence, uptime, timestamp_unix, group_id, complete, diagnostics, dictionary_delta, samples, processes]`，样本使用 `[metric_id, entity_id, value, status_id]`。新进程、网卡或磁盘的字典增量先于样本发送，历史和重连响应带齐初始目录及增量。CLI 是人类入口，直接输出带字段名的展开 JSON/JSONL/TSV/table；TSV API 和 Prometheus 也保持可读协议。后续可在相同 API 数据模型上增加 CBOR/MessagePack，不改变语义。
+
+紧凑批次追加 processes 数组以承载普通进程表，固定位置记录保留 PID、启动标识、名称、状态、CPU、RSS、线程数等已有字段，同批次 samples 不再重复这些信息。具体位置由实现时的 schema 和测试固定。Trace 值保留数值、文本、列表及结构化类型，保持整数精度。
+
+字典条目只有在实体退出且当前快照、历史窗口、队列和正在导出的数据不再引用时才可回收；session 内编号不复用。浏览器及可选持久化分别保存历史解码上下文。未知编号触发有界字典恢复，失败标记缺口，不猜测实体。字典增量可以在同一批次承载，但解码时必须先应用字典再处理 samples 和 processes。
 
 trace 生命周期属于 daemon，不绑定浏览器连接。前端重连后查询当前 trace，展示 PID、进程身份与状态，并提供停止与切换操作。切换先停止旧 trace，等待 worker 退出后再启动新目标；stopping 期间仍保持单活动 trace 约束，启动返回 409。普通采集与已有历史不受影响。
 
