@@ -941,13 +941,23 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
                     let (socket,_)=accepted?;
                     let Ok(permit)=socket_slots.clone().try_acquire_owned()else{drop(socket);continue};
                     let mut socket=tokio_io_timeout::TimeoutStream::new(socket);
-                    socket.set_read_timeout(Some(Duration::from_secs(30)));
+                    // Hyper enforces a 30s request-header timeout below.  The
+                    // transport itself must not have an idle read timeout: SSE
+                    // and followed exports intentionally keep the request open.
+                    socket.set_read_timeout(None);
                     socket.set_write_timeout(Some(Duration::from_secs(5)));
                     let service=hyper_util::service::TowerToHyperService::new(routes.clone());
                     connections.spawn(async move {
                         let _permit=permit;
                         let io=hyper_util::rt::TokioIo::new(Box::pin(socket));
-                        let _=hyper::server::conn::http1::Builder::new().max_buf_size(65536).serve_connection(io,service).await;
+                        // Keep a header timeout for clients that never finish an HTTP
+                        // request, while leaving the connection read side open for
+                        // long-lived SSE/export responses.
+                        let mut http=hyper::server::conn::http1::Builder::new();
+                        http.max_buf_size(65536)
+                            .header_read_timeout(Some(Duration::from_secs(30)))
+                            .timer(hyper_util::rt::TokioTimer::new());
+                        let _=http.serve_connection(io,service).await;
                     });
                 }
             }
