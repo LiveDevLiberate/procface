@@ -167,7 +167,7 @@ def main():
             assert d.request("/api/v1/current",headers={"Origin":"https://untrusted.example"})[0]==403
             assert d.request("/api/v1/current",headers={"Origin":"null"})[0]==403
             pre=d.request("/api/v1/current",method="OPTIONS",headers={"Authorization":""});assert pre[0]==204 and not pre[2]
-            h={"frontend_version":"9.8.7","build_id":"local","api_compatibility":{"min":1,"max":1},"development":True}
+            h={"frontend_version":"9.8.7","build_id":"local","api_compatibility":{"min":1,"max":1},"wire_schema":"procface-compact-v1","development":True}
             assert d.request("/api/v1/frontend/handshake",method="POST",data=h)[0]==200
             h["api_compatibility"]={"min":2,"max":2};assert d.request("/api/v1/frontend/handshake",method="POST",data=h)[0]==403
             time.sleep(1.2)

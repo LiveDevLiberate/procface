@@ -19,9 +19,9 @@ const http=require('node:http');
    res.on('close',()=>streams.delete(res));event(res,'connected',{session_id:session,sequence});return;
   }
   res.setHeader('Content-Type','application/json');
-  if(url.pathname==='/api/v1/capabilities')return res.end(JSON.stringify({session_id:session,api_version:1,allow_unsigned_frontend:true}));
+  if(url.pathname==='/api/v1/capabilities')return res.end(JSON.stringify({session_id:session,api_version:1,wire_schema:"procface-compact-v1",allow_unsigned_frontend:true}));
   if(url.pathname==='/api/v1/frontend/handshake'){
-   let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{handshakes.push(JSON.parse(body));if(rejectHandshake){res.writeHead(403);res.end('{"error":"invalid_signature","recommended_frontend_version":"0.2.0"}');}else res.end('{"accepted":true}');});return;
+   let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{handshakes.push(JSON.parse(body));if(rejectHandshake){res.writeHead(403);res.end('{"error":"invalid_signature","recommended_frontend_version":"0.2.0"}');}else res.end('{"accepted":true,"wire_schema":"procface-compact-v1"}');});return;
   }
   if(url.pathname==='/api/v1/trace')return res.end('{"state":"idle"}');
   if(url.pathname==='/api/v1/series'){

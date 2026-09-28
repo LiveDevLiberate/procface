@@ -24,13 +24,16 @@ const http=require('node:http');
    const saved=(await records('batches',viewSession))[0].batch;
    compactMetrics.clear();compactEntities.clear();
    const independent=decodeWire({wire_schema:'procface-compact-v1',session_id:session,batch:raw})[0];
-   return {same:writeJson(saved)===writeJson(independent),count:saved.samples.length,statuses:saved.samples.map(s=>s.status),pid:saved.processes[0].identity.pid,complete:saved.complete,diagnostics:saved.diagnostics,integer:String(saved.processes[0].identity.starttime_ticks),trace:writeJson(saved.samples[0].value),warning:dbWarned};
+   compactMetrics.clear();compactEntities.clear();
+   const unknown=decodeWire({wire_schema:'procface-compact-v1',session_id:session,batch:[2,11,null,0,true,[],{metrics:[],entities:[]},[[999,888,1,0]],[]]})[0];
+   return {same:writeJson(saved)===writeJson(independent),count:saved.samples.length,statuses:saved.samples.map(s=>s.status),pid:saved.processes[0].identity.pid,complete:saved.complete,diagnostics:saved.diagnostics,integer:String(saved.processes[0].identity.starttime_ticks),trace:writeJson(saved.samples[0].value),warning:dbWarned,unknown:unknown.dictionary_missing,unknownComplete:unknown.complete,unknownDiagnostics:unknown.diagnostics};
   });
   assert.equal(result.same,true);assert.equal(result.count,8);assert.equal(result.pid,42);
   assert.equal(result.statuses[0],'permission_denied');assert.equal(result.statuses.at(-1),'stale');
   assert.equal(result.complete,false);assert.deepEqual(result.diagnostics,['权限不足']);
   assert.equal(result.integer,'18446744073709551615');
   assert.equal(result.trace,'{"counter":18446744073709551615,"list":[true,"文本",null]}');
+  assert.equal(result.unknown,true);assert.equal(result.unknownComplete,false);assert.deepEqual(result.unknownDiagnostics,['dictionary_missing']);
   assert.equal(result.warning,false);
   console.log('紧凑前端验证通过：进程去重恢复、状态、u64、结构化 Trace、真实 IndexedDB 与独立解码。');
  }finally{await browser.close();await new Promise(r=>server.close(r));}

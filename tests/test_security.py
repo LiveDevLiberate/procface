@@ -17,7 +17,7 @@ def main():
     binary=str(Path(args.binary).resolve())
     with tempfile.TemporaryDirectory(prefix='procface-security-') as tmp:
         root=Path(tmp)/'proc';root.mkdir();fixture(root)
-        declaration={'frontend_version':'0.1.0','build_id':'development','api_compatibility':{'min':1,'max':1},'development':True}
+        declaration={'frontend_version':'0.1.0','build_id':'development','api_compatibility':{'min':1,'max':1},'wire_schema':'procface-compact-v1','development':True}
         daemon=Daemon(binary,root,frontend_debug=False,origin=None)
         try:
             cap=daemon.data('/api/v1/capabilities')
@@ -41,6 +41,11 @@ def main():
                 assert pre[0]==204 and pre[2]==b''
             bad={**declaration,'api_compatibility':{'min':2,'max':2}}
             assert daemon.request('/api/v1/frontend/handshake','POST',bad)[0]==403
+            for wire in (None, 'legacy', 'procface-compact-v2'):
+                old={**declaration,'wire_schema':wire}
+                if wire is None:old.pop('wire_schema')
+                status,_,body=daemon.request('/api/v1/frontend/handshake','POST',old)
+                assert status==403 and json.loads(body)['error']=='wire_incompatible'
             assert daemon.request('/api/v1/current',headers={'Origin':'https://example.github.io.evil.test'})[0]==403
             daemon.log.seek(0);assert '开发调试已启用' in daemon.log.read()
         finally:daemon.close()

@@ -47,6 +47,14 @@ def main():
         try:
             # 软件版本不同仍可建链，使用真正的 Ed25519 签名。
             assert daemon.request("/api/v1/frontend/handshake", "POST", build)[0] == 200
+            # 有效旧签名不能借外层补写 schema 冒充新协议声明。
+            old=json.loads(build['payload']);old.pop('wire_schema')
+            message=tmp/'old-declaration';message.write_text(json.dumps(old))
+            signature=tmp/'old-signature'
+            run('openssl','pkeyutl','-sign','-rawin','-inkey',key,'-in',message,'-out',signature)
+            old_build={**build,'payload':message.read_text(),'signature':base64.b64encode(signature.read_bytes()).decode()}
+            status,_,body=daemon.request('/api/v1/frontend/handshake','POST',old_build)
+            assert status==403 and json.loads(body)['error']=='declaration_mismatch'
             mismatch = {**build, "build_id": "other"}
             assert daemon.request("/api/v1/frontend/handshake", "POST", mismatch)[0] == 403
             tampered = {**build, "payload": build["payload"] + " "}

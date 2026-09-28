@@ -28,6 +28,18 @@ const html=path.resolve(__dirname,'../web/procface-web.html');
   assert.match(await page.locator('#message').innerText(),/2\.0\.0/);
   assert.deepEqual(requests,['/api/v1/capabilities']);
   await page.unroute('http://device.test/**');
+  // API v1 本身不证明 wire schema 兼容；旧 daemon 必须在订阅前被拒绝。
+  for(const wire of [undefined,'legacy']){
+   requests.length=0;
+   await page.route('http://device.test/**',route=>{
+    requests.push(new URL(route.request().url()).pathname);
+    return route.fulfill({json:{api_version:1,wire_schema:wire,recommended_frontend_version:'0.1.0'}});
+   });
+   await page.locator('#connect').click();
+   await page.waitForFunction(()=>document.querySelector('#message').textContent.includes('线格式不兼容')&&!document.querySelector('#connect').disabled);
+   assert.deepEqual(requests,['/api/v1/capabilities']);
+   await page.unroute('http://device.test/**');
+  }
   // 实时更新不得替换 canvas、进程行或折叠正在查看的 Trace。
   await page.evaluate(()=>{
    resetView();

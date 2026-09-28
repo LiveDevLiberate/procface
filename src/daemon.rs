@@ -437,10 +437,7 @@ struct Handshake {
     signature: Option<String>,
 }
 fn verify_handshake(app: &App, h: &Handshake) -> Result<bool, &'static str> {
-    if h.wire_schema
-        .as_deref()
-        .is_some_and(|s| s != compact::WIRE_SCHEMA)
-    {
+    if h.wire_schema.as_deref() != Some(compact::WIRE_SCHEMA) {
         return Err("wire_incompatible");
     }
     if h.api_compatibility.min > 1
@@ -473,8 +470,7 @@ fn verify_handshake(app: &App, h: &Handshake) -> Result<bool, &'static str> {
         || d.build_id != h.build_id
         || d.api_compatibility.min != h.api_compatibility.min
         || d.api_compatibility.max != h.api_compatibility.max
-        || d.wire_schema.as_deref().unwrap_or(compact::WIRE_SCHEMA)
-            != h.wire_schema.as_deref().unwrap_or(compact::WIRE_SCHEMA)
+        || d.wire_schema.as_deref() != Some(compact::WIRE_SCHEMA)
     {
         return Err("declaration_mismatch");
     }

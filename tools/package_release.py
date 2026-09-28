@@ -29,9 +29,10 @@ def main():
     embedded=json.loads(html.read_text().split('const BUILD = /*PROCFACE_BUILD*/')[1].split(';',1)[0])
     verify_signature(args.public_key,embedded['payload'].encode(),embedded['signature'])
     signed=json.loads(embedded['payload'])
-    for field in ('frontend_version','build_id','api_compatibility'):
+    for field in ('frontend_version','build_id','api_compatibility','wire_schema'):
         if not (embedded[field]==signed[field]==declaration[field]):raise ValueError('签名声明字段不一致：'+field)
     if declaration['frontend_version']!=version:raise ValueError('前端与 Cargo 发布版本不匹配')
+    if declaration['wire_schema']!='procface-compact-v1':raise ValueError('前端线格式不兼容')
     if not declaration['api_compatibility']['min']<=1<=declaration['api_compatibility']['max']:raise ValueError('前端不支持 API v1')
     binaries=[]
     for flavor,root in (('release',args.release_root),('diagnostic',args.diagnostic_root)):
@@ -65,7 +66,7 @@ def main():
         index=[]
         for flavor,target,binary,digest in binaries:
             name=f'procface-{version}-{target}-{flavor}'
-            metadata={'procface_version':version,'api_version':1,'schema_version':1,'build_id':declaration['build_id'],
+            metadata={'procface_version':version,'api_version':1,'schema_version':1,'wire_schema':declaration['wire_schema'],'build_id':declaration['build_id'],
                 'target':target,'flavor':flavor,'binary_sha256':digest,'frontend_sha256':declaration['sha256']}
             build=Path(temp)/'build.json';build.write_text(json.dumps(metadata,indent=2)+'\n')
             with tarfile.open(assets/(name+'.tar.gz'),'w:gz') as tar:

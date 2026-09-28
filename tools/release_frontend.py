@@ -37,7 +37,7 @@ def compact(value):
 
 
 def build(args):
-    declaration = {"frontend_version": args.version, "build_id": args.build_id, "api_compatibility": {"min": 1, "max": 1}}
+    declaration = {"frontend_version": args.version, "build_id": args.build_id, "api_compatibility": {"min": 1, "max": 1}, "wire_schema": "procface-compact-v1"}
     payload = compact(declaration)
     handshake = {**declaration, "payload": payload, "signature": sign(args.key, payload.encode())}
     source = args.source.read_text(encoding="utf-8")
