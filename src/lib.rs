@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod collector;
+pub mod compact;
 pub mod daemon;
 pub mod model;
 pub mod parsers;

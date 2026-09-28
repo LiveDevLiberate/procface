@@ -1,0 +1,36 @@
+# 紧凑线格式实施记录
+
+状态：编码核心已实现并测试，尚未接入 daemon 或前端；不能据此认定紧凑 API 已交付。OpenSpec 7.11–7.13 保持未完成。
+
+API 主版本继续为 1。线格式使用独立标识 `procface-compact-v1`，旧对象协议不保留兼容分支。CLI、TSV API、Prometheus 和前端下载仍使用既有可读格式。
+
+## 批次与目录
+
+批次固定为 `[sequence, uptime, timestamp_unix, group_id, complete, diagnostics, dictionary_delta, samples, processes]`。
+
+样本固定为 `[metric_id, entity_id, value, status_id]`。目录条目为：
+
+- 指标：`[id, name, unit, kind]`；必须由显式发布目录指定编号，不能按采集顺序分配。
+- 实体：`[id, name]`；由 daemon session 分配，编号递增、不复用。
+- 分组：索引 0–2 对应 `system/process/trace`。
+- 状态：索引 0–6 对应 `ok/unsupported/permission_denied/parse_error/exited/stale/discontinuity`。
+
+编码核心目前为每个批次携带其引用的字典子集（定义允许重复），放在样本前。这样窗口中任意起点都可以解码。流端后续可省略已发送定义，但必须保留首次定义及重连上下文；优化必须以实际体积测量为依据。
+
+编码批次持有实体定义的强引用，目录持有弱引用。只有缓存、队列和导出均释放批次后，目录才可回收条目；重新遇到已回收的名称也分配新编号。接入存储时必须将编码批次和这些引用纳入字节预算。浏览器持久化应保存展开数据或完整解码上下文。
+
+## 进程记录
+
+固定位置：`[entity_id, pid, starttime_ticks, name, state, uid, rss_bytes, threads, cpu_seconds, cpu_percent, sample_mask, cpu_status_id]`。
+
+`sample_mask` 七个位依次对应 PID、名称、状态、RSS、线程数、CPU 秒数、CPU 百分比样本。只有原始样本确实存在、值匹配、状态可保留时才合并；前端按位恢复可读样本，避免过滤响应凭空产生未请求的样本。CPU 百分比的状态单独保存，首次读取的 `null/stale` 不得变成 `null/ok`。其他异常、退出实体和 `virtual_bytes` 继续保留在样本数组中。
+
+## 验证与接入剩余项
+
+`cargo test --locked --offline` 当前通过 14 项测试，其中 3 项为紧凑编码专项测试：
+
+- 独立解码器验证进程去重、筛选、异常状态、结构化值及 u64 最大值往返；样例封装体积小于原始对象。
+- 采集顺序变化不改变目录编号；最后一个批次引用释放后可回收，编号不复用。
+- 重复编号、未知指标和单位/类型冲突必须报错，不能静默解释。
+
+接下来仍需显式指标发布目录（含动态线程指标处理）、daemon 全部数据接口接入、schema 握手、前端解码与有界恢复、持久化验证、真实负载体积测量。以上未实现项不得以单元测试替代验收。
