@@ -1,0 +1,70 @@
+name: 验证与交叉构建
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
+      - run: npm ci --prefix tools
+      - run: npx --prefix tools playwright install --with-deps chromium
+      - run: node tools/test_frontend_history.cjs
+        env:
+          PROCFACE_BROWSER_CHANNEL: chromium
+      - run: node tools/test_frontend_stream.cjs
+        env:
+          PROCFACE_BROWSER_CHANNEL: chromium
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - run: cargo fmt --all -- --check
+      - run: cargo test --locked
+      - run: cargo test --locked --all-features
+      - run: cargo clippy --locked --all-features --all-targets -- -D warnings
+      - run: cargo build --locked
+      - run: python3 tests/test_e2e.py --binary target/debug/procface
+      - run: python3 tests/test_release.py --binary target/debug/procface
+      - run: python3 tests/test_security.py --binary target/debug/procface
+      - run: python3 tests/test_trace.py --binary target/debug/procface
+      - run: python3 tests/test_stream.py --binary target/debug/procface
+      - run: cargo build --locked --features diagnostic
+      - run: python3 tests/test_e2e.py --binary target/debug/procface --diagnostic
+      - run: python3 tests/test_trace.py --binary target/debug/procface --diagnostic
+  cross:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [armv7-unknown-linux-musleabihf, aarch64-unknown-linux-musl, riscv64gc-unknown-linux-musl, x86_64-unknown-linux-musl]
+        features: ["", diagnostic]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - run: |
+          python3 -m venv .cross-tools
+          .cross-tools/bin/pip install cargo-zigbuild==0.23.4 ziglang==0.14.1
+          echo "$PWD/.cross-tools/bin" >> "$GITHUB_PATH"
+      - run: cargo zigbuild --locked --release --target "${{ matrix.target }}" --features "${{ matrix.features }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: procface-${{ matrix.target }}-${{ matrix.features || 'release' }}
+          path: |
+            target/${{ matrix.target }}/release/procface
+            LICENSE
+            web/procface-web.html
+

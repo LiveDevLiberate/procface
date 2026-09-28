@@ -1,0 +1,120 @@
+@startuml
+left to right direction
+skinparam componentStyle uml
+skinparam packageStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName "Microsoft YaHei"
+skinparam nodesep 20
+skinparam ranksep 25
+skinparam component {
+  FontColor #202020
+  BorderColor #555555
+}
+
+package "发布" #E8EAF6 {
+  [GitHub Release\n二进制 / HTML / 外部签名校验清单] as Release #C5CAE9
+  [GitHub Pages\n相同 HTML，固定入口] as Pages #D1C4E9
+}
+
+package "嵌入式 Linux 设备" #F5F5F5 {
+  database "procfs\n/proc/*" as Procfs #90CAF9
+  component "共享采集核心（Rust 库）" as Core #90CAF9 {
+    [系统 P0 / 轻量进程读取器] as Basic #90CAF9
+    [单 PID 深度读取器] as Deep #EF9A9A
+    [解析 / 差分 / 统一样本] as Model #90CAF9
+  }
+  [procface CLI\nsample / trace / capabilities] as CLI #BDBDBD
+
+  package "procface daemon" {
+    [配置 / token / CORS\n签名版本声明检查] as Config #BBDEFB
+    [主采样线程\n系统优先，间隔 ≥ 1 秒] as Scheduler #BBDEFB
+    [普通快照 / 有界历史\n默认 60 秒窗口] as Store #FFE0B2
+    [独立 Trace Worker\n单 PID / 独立间隔与预算] as Trace #EF9A9A
+    [独立 Trace 缓存] as TraceStore #FFE0B2
+    [HTTP 发布循环\nAPI v1 / SSE / 导出 / metrics] as HTTP #CE93D8
+    [SQLite Worker\n诊断构建，显式启用] as SQLite #FFCC80
+  }
+}
+
+package "开发机 / 浏览器" #FAFAFA {
+  [单体 HTML\n在线 / 本地文件 / 静态托管] as Frontend #D1C4E9
+  [图表 / 进程排序筛选\n默认前 16 个 / Trace 控制] as Views #D1C4E9
+  database "IndexedDB\n会话历史 / gap" as History #FFE0B2
+  [本地导出\nTSV / CSV / JSON / 图表] as Download #D1C4E9
+  [脚本 / Prometheus 抓取端] as External #BDBDBD
+}
+
+Release ..> CLI : 部署同一二进制
+Release ..> Scheduler : daemon 入口
+Release ..> Pages : 相同 HTML 字节
+Pages ..> Frontend : HTTPS 加载
+Release ..> Frontend : 下载后本地打开
+
+Procfs --> Basic : 文件读取
+Procfs --> Deep : 按 PID 读取
+Basic --> Model : 原始计数
+Deep --> Model : 深度信息
+CLI ..> Core : 本地函数调用
+Scheduler ..> Basic : 本地调用，采集整轮
+Trace ..> Deep : 本地调用，独立任务
+Scheduler --> Store : SampleBatch / 普通快照
+Trace --> TraceStore : SampleBatch / trace 状态
+Config ..> Scheduler : 配置
+Config ..> HTTP : 鉴权与建链策略
+Store --> HTTP : 不可变快照 / 有界队列
+TraceStore --> HTTP : 独立历史 / 状态
+Store --> SQLite : 有界写入队列
+TraceStore --> SQLite : 显式持久化时入队
+HTTP ..> Trace : 启动 / 查询 / 合作式停止
+
+Frontend --> HTTP : HTTP + Bearer token\ncapabilities / handshake / current / series / trace
+HTTP --> Frontend : SSE / 有界发送队列
+HTTP --> External : chunked JSONL / TSV\nPrometheus /metrics
+Frontend --> Views : 实时样本 / 状态
+Frontend --> History : 写入样本 / 缺口
+History --> Views : 历史回看
+History --> Download : 历史数据
+Views --> Download : 单图导出
+
+CLI --> External : stdout：table / TSV / JSON / JSONL
+
+ note bottom of Basic
+ 扫描全部授权范围内轻量进程
+ 默认当前用户，不固定截断 256 个
+ 后端不按指标排序
+ 超时跳过本轮并报告覆盖状态
+ end note
+
+ note bottom of Trace
+ 浏览器断开后继续
+ 重连可停止并切换 PID
+ 旧任务停止完成后才允许新任务
+ 普通采集与历史持续工作
+ end note
+
+ note bottom of Store
+ 数据：Sample / SampleBatch
+ ProcessIdentity（PID + starttime）
+ CapabilityState / Health
+ 字节预算实现后实测调整
+ end note
+
+ note bottom of Config
+ 可信签名 + API 范围兼容即可
+ 不要求前后端软件版本相同
+ 显式开发调试允许未签名版本
+ token / CORS / API 检查仍生效
+ 不证明浏览器运行代码完整性
+ end note
+
+legend bottom
+|= 颜色 |= 角色 |
+|<#90CAF9>| 输入 / 共享采集核心 |
+|<#BBDEFB>| 配置 / 调度 |
+|<#FFE0B2>| 缓存 / 存储 |
+|<#CE93D8>| API / 通信 |
+|<#D1C4E9>| 前端 |
+|<#EF9A9A>| 深度诊断 |
+|<#BDBDBD>| CLI / 外部客户端 |
+endlegend
+@enduml

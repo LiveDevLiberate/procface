@@ -1,0 +1,65 @@
+{
+  "environment": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "machine": "x86_64",
+  "binary": "/home/roger/.cache/procface/cross/x86_64-unknown-linux-musl/release/procface",
+  "sampling_seconds": 1,
+  "fixture": true,
+  "results": [
+    {
+      "process_count": 1,
+      "trace": false,
+      "duration_seconds": 4.1199256469999455,
+      "rss_bytes": 1998848,
+      "peak_bytes": 1998848,
+      "cpu_ticks": 0,
+      "threads": 3,
+      "cpu_percent_one_core": 0.0,
+      "history_bytes": 166060,
+      "trace_history_bytes": 0,
+      "dropped_batches": 0,
+      "skipped_rounds": 0
+    },
+    {
+      "process_count": 300,
+      "trace": false,
+      "duration_seconds": 4.115061448999768,
+      "rss_bytes": 5787648,
+      "peak_bytes": 6287360,
+      "cpu_ticks": 3,
+      "threads": 3,
+      "cpu_percent_one_core": 0.7290292106644479,
+      "history_bytes": 4095464,
+      "trace_history_bytes": 0,
+      "dropped_batches": 0,
+      "skipped_rounds": 0
+    },
+    {
+      "process_count": 3000,
+      "trace": false,
+      "duration_seconds": 4.130883087999791,
+      "rss_bytes": 4112384,
+      "peak_bytes": 11034624,
+      "cpu_ticks": 28,
+      "threads": 3,
+      "cpu_percent_one_core": 6.53613269241024,
+      "history_bytes": 151815,
+      "trace_history_bytes": 0,
+      "dropped_batches": 5,
+      "skipped_rounds": 5
+    },
+    {
+      "process_count": 300,
+      "trace": true,
+      "duration_seconds": 4.157890127000428,
+      "rss_bytes": 6922240,
+      "peak_bytes": 7606272,
+      "cpu_ticks": 3,
+      "threads": 4,
+      "cpu_percent_one_core": 0.7215197872879461,
+      "history_bytes": 4095464,
+      "trace_history_bytes": 1070255,
+      "dropped_batches": 0,
+      "skipped_rounds": 0
+    }
+  ]
+}
