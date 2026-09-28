@@ -4,7 +4,7 @@
 
 ### Requirement: API v1 data service
 
-daemon MUST 提供 capabilities、health、current、series、stream、export 和 Prometheus `/metrics` 接口，默认监听 127.0.0.1，所有数据接口使用 Bearer token。除 Prometheus 外的机器可读数据接口 MUST 使用统一紧凑协议；capabilities MUST 提供解码所需的指标、实体、分组和状态目录。CORS 默认拒绝，允许来源必须显式配置。
+daemon MUST 提供 capabilities、health、current、series、stream、export 和 Prometheus `/metrics` 接口，默认监听 127.0.0.1，所有数据接口使用 Bearer token。除 TSV 和 Prometheus 外的机器可读数据接口 MUST 使用统一紧凑协议；capabilities MUST 提供初始解码目录，current、series、stream 和 JSON/JSONL export MUST 提供所需的字典增量。CORS 默认拒绝，允许来源必须显式配置。
 
 #### Scenario: Unauthorized request
 - **WHEN** 请求未携带有效 token

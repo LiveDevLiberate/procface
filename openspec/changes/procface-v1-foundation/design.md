@@ -36,7 +36,7 @@ CLI 的 sample、trace、capabilities 与 daemon 直接复用同一 procfs 解�
 
 ### 流与历史
 
-API 机器可读数据统一采用紧凑 JSON 数组，不让 HTTP current/series/stream/export 各自定义格式。批次使用 `[sequence, uptime, timestamp_unix, group_id, samples]`，样本使用 `[metric_id, entity_id, value, status_id]`；目录只在 capabilities 或 session 变更时传送。CLI 是人类入口，直接输出带字段名的展开 JSON/JSONL/TSV/table，不要求用户理解 API 数组位置。后续可在相同 API 数据模型上增加 CBOR/MessagePack，不改变语义。
+API 机器可读数据统一采用紧凑 JSON 数组，不让 HTTP current/series/stream/export 各自定义格式。批次使用 `[sequence, uptime, timestamp_unix, group_id, complete, diagnostics, dictionary_delta, samples]`，样本使用 `[metric_id, entity_id, value, status_id]`。新进程、网卡或磁盘的字典增量先于样本发送，历史和重连响应带齐初始目录及增量。CLI 是人类入口，直接输出带字段名的展开 JSON/JSONL/TSV/table；TSV API 和 Prometheus 也保持可读协议。后续可在相同 API 数据模型上增加 CBOR/MessagePack，不改变语义。
 
 trace 生命周期属于 daemon，不绑定浏览器连接。前端重连后查询当前 trace，展示 PID、进程身份与状态，并提供停止与切换操作。切换先停止旧 trace，等待 worker 退出后再启动新目标；stopping 期间仍保持单活动 trace 约束，启动返回 409。普通采集与已有历史不受影响。
 
