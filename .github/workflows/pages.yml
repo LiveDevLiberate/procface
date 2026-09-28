@@ -1,0 +1,54 @@
+name: 部署签名前端到 Pages
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 已上传签名前端的 Release tag
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: pages
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 下载并验证 Release 前端
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ inputs.tag || github.event.release.tag_name }}
+          PUBLIC_KEY: ${{ vars.PROCFACE_RELEASE_PUBLIC_KEY }}
+        run: |
+          set -euo pipefail
+          test -n "$PUBLIC_KEY" || { echo '请配置可信发布公钥变量 PROCFACE_RELEASE_PUBLIC_KEY' >&2; exit 1; }
+          mkdir _site
+          gh release download "$RELEASE_TAG" --dir _site --pattern procface-web.html --pattern frontend-manifest.json --pattern LICENSE
+          python3 tools/release_frontend.py verify --html _site/procface-web.html --manifest _site/frontend-manifest.json --public-key "$PUBLIC_KEY"
+          cp _site/procface-web.html _site/index.html
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - uses: actions/deploy-pages@v4
+        id: deployment
+      - name: 校验线上 HTML 与 Release 字节一致
+        env:
+          PAGE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --retry 5 --retry-all-errors "${PAGE_URL}?deployment=${GITHUB_RUN_ID}" --output /tmp/procface-pages.html
+          cmp _site/procface-web.html /tmp/procface-pages.html

@@ -1,6 +1,6 @@
 # 发布操作
 
-当前版本尚未正式发布。仓库为 https://github.com/LiveDevLiberate/procface ，目前私有。以下步骤准备同一提交上的四架构二进制、签名单体 HTML 和 Pages 目录。发布密钥、目标板验收和最低内核验证仍须落实；不把测试密钥当作发布信任根。
+当前版本尚未正式发布。仓库为 https://github.com/LiveDevLiberate/procface ，已公开。Pages 已启用 Actions 部署，固定入口为 https://livedevliberate.github.io/procface/ ，首次部署须先准备签名产物。以下步骤准备同一提交上的四架构二进制、签名单体 HTML 和 Pages 目录。发布密钥、目标板验收和最低内核验证仍须落实；不把测试密钥当作发布信任根。
 
 ## 前置条件
 
@@ -37,6 +37,15 @@ python3 tools/package_release.py \
 归档内 daemon 可通过 `--frontend-public-key` 指定可信公钥，也可构建时设置 `PROCFACE_RELEASE_KEY` 嵌入公钥。没有配置受信任公钥的 daemon 不会自动信任下载目录里的任意公钥。不要为正式发布启用 `--allow-unsigned-frontend`。
 
 ## 上传与部署验收
+
+仓库工作流 `.github/workflows/pages.yml` 从 Release 下载前端，使用仓库变量 `PROCFACE_RELEASE_PUBLIC_KEY` 中预先确认的 Base64 公钥验证签名与摘要，然后原样部署。该变量只存公钥，私钥不需要交给 Pages。发布 Release 时自动触发；也可在附件上传齐全后手动执行：
+
+```sh
+gh variable set PROCFACE_RELEASE_PUBLIC_KEY --body '可信Base64公钥'
+gh workflow run pages.yml -f tag=v0.1.0
+```
+
+Release 必须包含 `procface-web.html`、`frontend-manifest.json` 和 `LICENSE`。缺少公钥、附件或验签失败时终止部署；不回退为未签名开发页面。工作流在部署后下载线上 HTML 并与 Release 原始字节比较。建议先上传全部附件到草稿 Release，再发布。
 
 1. 创建与 Cargo 版本对应的 Release，上传 `assets/` 内文件。
 2. 将 `pages/` 原样部署到所选仓库的 GitHub Pages 固定入口。
