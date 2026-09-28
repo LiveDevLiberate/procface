@@ -35,6 +35,8 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory web
 
 前端提供实时图表、默认前 16 个进程及前端筛选排序、独立 trace、IndexedDB 历史、CSV/TSV/JSON 导出与 PNG 单图下载。断线不停止 daemon 或 trace；重连可停止原 trace，再切换 PID。浏览器可能限制本地网络访问，需检查权限与来源配置，不要关闭浏览器安全机制。
 
+界面分为“总览 / 进程 / Trace”三页，使用等宽字体与方括号按钮。总览按 CPU、负载、内存、磁盘和网络分组；进程页选择 PID 后进入 Trace 页。切页不会停止订阅或清空历史。连接成功后配置自动收起，公共栏保留设备、采样间隔、uptime 和断链状态。
+
 ## 接口
 
 数据请求均使用 Authorization: Bearer TOKEN。
@@ -81,7 +83,7 @@ python3 tools/release_frontend.py build --key /安全路径/release.key --versio
 python3 tools/release_frontend.py verify --html dist/procface-web.html --manifest dist/frontend-manifest.json --public-key 可信Base64公钥
 ~~~
 
-先生成内嵌签名声明，再对最终 HTML 生成外部 SHA-256 签名清单。发布私钥不进入产物。Pages 与 Release 应使用同一 HTML 字节。项目仓库为 [LiveDevLiberate/procface](https://github.com/LiveDevLiberate/procface)，目前私有；正式发布密钥与线上 Pages 尚未配置。
+先生成内嵌签名声明，再对最终 HTML 生成外部 SHA-256 签名清单。发布私钥不进入产物。Pages 与 Release 应使用同一 HTML 字节。项目仓库为 [LiveDevLiberate/procface](https://github.com/LiveDevLiberate/procface)，已公开；Pages 发布流程与公钥已配置，但线上旧预览尚未更新为当前实现，状态和步骤见 [发布操作](docs/release.md)。
 
 正式目录组装使用 `tools/package_release.py`，生成 Release 附件与字节一致的 Pages 目录；具体构建、上传与验收步骤见 [发布操作](docs/release.md)。该工具不自动上传或部署。
 

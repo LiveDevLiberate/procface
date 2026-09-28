@@ -19,7 +19,7 @@ const http=require('node:http');
    res.on('close',()=>streams.delete(res));event(res,'connected',{session_id:session,sequence});return;
   }
   res.setHeader('Content-Type','application/json');
-  if(url.pathname==='/api/v1/capabilities')return res.end(JSON.stringify({session_id:session,api_version:1,wire_schema:"procface-compact-v1",allow_unsigned_frontend:true}));
+  if(url.pathname==='/api/v1/capabilities')return res.end(JSON.stringify({session_id:session,api_version:1,sampling_interval_s:1,wire_schema:"procface-compact-v1",allow_unsigned_frontend:true}));
   if(url.pathname==='/api/v1/frontend/handshake'){
    let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{handshakes.push(JSON.parse(body));if(rejectHandshake){res.writeHead(403);res.end('{"error":"invalid_signature","recommended_frontend_version":"0.2.0"}');}else res.end('{"accepted":true,"wire_schema":"procface-compact-v1"}');});return;
   }
@@ -38,6 +38,9 @@ const http=require('node:http');
  try{
   await page.goto(origin);await page.locator('#address').fill(origin);await page.locator('#token').fill(token);await page.locator('#connect').click();
   await page.waitForFunction(()=>lastSequence===1);
+  assert.equal(await page.locator('#connectionConfig').getAttribute('open'),null);
+  assert.match(await page.locator('#intervalState').innerText(),/1 s/);
+  assert.match(await page.locator('#uptimeState').innerText(),/1.00 s/);
   sequence=2;for(const res of streams)event(res,'sample',sample(2));
   await page.waitForFunction(()=>lastSequence===2);
   // 服务端明确驱逐慢客户端，短窗口内补偿全部样本。

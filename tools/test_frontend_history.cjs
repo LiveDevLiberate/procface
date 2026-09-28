@@ -48,13 +48,13 @@ const html=path.resolve(__dirname,'../web/procface-web.html');
    latestProcesses=[{identity:{pid:42,starttime_ticks:1},name:'stable',state:'R',cpu_percent:1,rss_bytes:100,threads:1}];
    render();
    const canvas=$('charts').querySelector('canvas'),row=$('processes').firstChild;
-   if($('charts').children.length!==defaultMetrics.size+1)throw Error('默认指标或多设备覆盖不足');
+   if($('charts').querySelectorAll('article.chart').length!==defaultMetrics.size+1)throw Error('默认指标或多设备覆盖不足');
    renderTraceFields({samples:[sample('trace.status')]});
    const detail=$('traceFields').firstChild;detail.open=true;
    render();renderTraceFields({samples:[sample('trace.status')]});
    if(canvas!==$('charts').querySelector('canvas')||row!==$('processes').firstChild||detail!==$('traceFields').firstChild||!detail.open)throw Error('实时刷新替换了可视节点');
    $('allCharts').click();render();
-   if($('charts').children.length!==points.size)throw Error('全部指标未覆盖');
+   if($('charts').querySelectorAll('article.chart').length!==points.size)throw Error('全部指标未覆盖');
    resetView();
   });
   const result=await page.evaluate(async()=>{
@@ -88,6 +88,7 @@ const html=path.resolve(__dirname,'../web/procface-web.html');
   });
   await page.waitForFunction(()=>document.querySelectorAll('#processes tr').length===16);
   assert.equal(await page.locator('#processes tr').first().locator('td').first().innerText(),'119');
+  await page.getByRole('tab',{name:'进程',exact:true}).click();
   await page.locator('#sort').selectOption('memory');
   await page.waitForFunction(()=>document.querySelector('#processes td').textContent==='100');
   await page.locator('#top').selectOption('0');
@@ -114,6 +115,7 @@ const html=path.resolve(__dirname,'../web/procface-web.html');
    if(format==='json'){const data=JSON.parse(text);assert.equal(data.batches.at(-1).processes.length,20);assert(data.gaps.some(g=>!g.recovered));}
    else {assert(text.startsWith('record_type'+(format==='csv'?',':'\t')+'schema_version'));assert(text.includes('procface.gap'));}
   }
+  await page.getByRole('tab',{name:'总览',exact:true}).click();
   const pngReady=page.waitForEvent('download');await page.getByRole('button',{name:'PNG',exact:true}).first().click();
   const png=fs.readFileSync(await(await pngReady).path());assert.equal(png.subarray(0,8).toString('hex'),'89504e470d0a1a0a');
   const saved=await page.evaluate(async()=>writeJson({batches:await records('batches',viewSession),gaps:await records('gaps',viewSession)}));
@@ -132,6 +134,7 @@ const html=path.resolve(__dirname,'../web/procface-web.html');
    window.fetch=async(url,options)=>new Response(JSON.stringify({state:options.method==='DELETE'||++window.tracePolls<2?'stopping':'idle',options:{pid:100},identity:{pid:100,starttime_ticks:123}}));
   });
   assert.match(await page.locator('#traceState').innerText(),/启动标识 123/);
+  await page.getByRole('tab',{name:'Trace',exact:true}).click();
   await page.locator('#stopTrace').click();
   assert.equal(await page.locator('#startTrace').isDisabled(),true);
   await page.waitForFunction(()=>trace.state==='idle');

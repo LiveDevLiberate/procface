@@ -26,6 +26,9 @@ jobs:
       - run: node tools/test_frontend_compact.cjs
         env:
           PROCFACE_BROWSER_CHANNEL: chromium
+      - run: node tools/test_frontend_layout.cjs
+        env:
+          PROCFACE_BROWSER_CHANNEL: chromium
   test:
     runs-on: ubuntu-24.04
     steps:

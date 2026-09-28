@@ -372,6 +372,7 @@ async fn capabilities(State(app): State<Shared>) -> Json<Value> {
     value["session_id"] = json!(app.session);
     value["wire_schema"] = json!(compact::WIRE_SCHEMA);
     value["schema_version"] = json!(1);
+    value["sampling_interval_s"] = json!(app.args.interval);
     value["dictionary"] = json!({"groups":compact::GROUPS,"statuses":compact::STATUSES,
         "process_fields":compact::PROCESS_FIELDS,"metrics":app.compact_catalog.dictionary()});
     value["recommended_frontend_version"] = json!(env!("CARGO_PKG_VERSION"));

@@ -22,6 +22,7 @@ def main():
                 status,_,body=daemon.request(path);assert status==200,(status,body)
                 return json.loads(body)
             current=raw('/api/v1/current')
+            assert raw('/api/v1/capabilities')['sampling_interval_s']==1
             expanded=decode(current)
             assert {b['group'] for b in expanded['batches']}=={'system','process'}
             for b in current['batches']:
