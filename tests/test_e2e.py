@@ -14,6 +14,7 @@ import threading
 import time
 import urllib.request
 import urllib.error
+from compact_wire import decode
 
 TOKEN = "test-token-01234567890123456789"
 ROOT = Path(__file__).resolve().parents[1]
@@ -96,7 +97,14 @@ class Daemon:
         except urllib.error.HTTPError as e:return e.code,e.headers,e.read()
 
     def data(self,path):
-        status,_,data=self.request(path);assert status==200,(status,data);return json.loads(data)
+        status,_,data=self.request(path);assert status==200,(status,data)
+        value=json.loads(data)
+        endpoint=path.split('?')[0]
+        if endpoint in ('/api/v1/current','/api/v1/series','/api/v1/processes') or endpoint.endswith(('/current','/series')):
+            value=decode(value)
+            if endpoint=='/api/v1/processes' or endpoint.startswith('/api/v1/processes/') and endpoint.endswith('/current'):
+                return value['batches'][0] if value['batches'] else {'processes':[], 'complete':False}
+        return value
 
     def close(self):
         self.process.send_signal(signal.SIGINT)

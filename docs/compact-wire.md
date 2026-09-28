@@ -1,6 +1,6 @@
 # 紧凑线格式实施记录
 
-状态：编码核心、daemon 的 `wire=compact` current/series/stream/export JSONL、握手元数据以及前端解码已接入并通过回归测试。默认可读对象接口暂保留用于迁移；生产前应将调用方统一切换到紧凑线格式。
+状态：current/series/stream、进程列表与进程 current/series/stream 默认使用紧凑数据，JSONL 导出同样使用紧凑批次；旧对象输出分支已移除。`wire=compact` 仍可显式声明，但省略时结果相同。CLI、TSV 与 Prometheus 不受此切换影响。OpenSpec 7.11–7.13 尚未完成全部验收。
 
 API 主版本继续为 1。线格式使用独立标识 `procface-compact-v1`，旧对象协议不保留兼容分支。CLI、TSV API、Prometheus 和前端下载仍使用既有可读格式。
 
@@ -27,7 +27,7 @@ API 主版本继续为 1。线格式使用独立标识 `procface-compact-v1`，�
 
 ## 验证与接入剩余项
 
-`cargo test --locked --offline` 当前通过 14 项测试，其中 3 项为紧凑编码专项测试：
+`cargo test --locked --offline` 当前通过 16 项测试，包含紧凑编码专项测试：
 
 - 独立解码器验证进程去重、筛选、异常状态、结构化值及 u64 最大值往返；样例封装体积小于原始对象。
 - 采集顺序变化不改变目录编号；最后一个批次引用释放后可回收，编号不复用。
@@ -37,4 +37,6 @@ API 主版本继续为 1。线格式使用独立标识 `procface-compact-v1`，�
 
 已增加解析器目录覆盖测试，以及模拟 procfs 的实际 system/process/extended Trace 编码与还原测试；诊断构建额外覆盖敏感文件的缺失状态。
 
-当前仍需完成默认接口切换、完整端到端紧凑协议测试、四架构交叉构建和发布产物校验。以上未实现项不得以单元测试替代验收。
+默认协议切换后已通过 `test_e2e.py`、`test_stream.py`、`test_trace.py`；测试通过独立的 `tests/compact_wire.py` 解码器检查数组形状、目录引用和原有语义。`test_compact.py` 验证默认数组、逐批独立解码、动态网卡、进程筛选、分页元数据及 JSONL。`tools/test_frontend_compact.cjs` 在真实浏览器中验证 IndexedDB 保存、进程样本恢复、状态及 u64/结构化 Trace；已修复进程身份混入函数导致无法保存历史的问题。
+
+仍需严格拒绝缺少或不兼容 wire schema 的建链声明及旧 daemon、未知字典的有界恢复与缺口、导出边界和真实负载体积测量，以及四架构运行验证和正式发布产物校验。上述工作不能由已有回归通过替代。

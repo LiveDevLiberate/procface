@@ -246,10 +246,9 @@ impl App {
         all.sort_by_key(|b| b.sequence);
         all
     }
-    fn snapshot(&self, q: &Filter) -> Value {
-        // 复制两个历史窗口及丢失水位时保持同一发布边界；过滤/序列化在锁外。
+    fn snapshot(&self, q: &Filter) -> io::Result<Value> {
         let publish_order = self.publish_order.lock().unwrap();
-        let mut all: Vec<_> = self
+        let mut all: Vec<Arc<SampleBatch>> = self
             .normal
             .lock()
             .unwrap()
@@ -276,36 +275,6 @@ impl App {
         all.sort_by_key(|b| b.sequence);
         let oldest = all.first().map(|b| b.sequence);
         let limit = q.limit.unwrap_or(1000);
-        let mut filtered: Vec<_> = all
-            .into_iter()
-            .filter(|b| q.matches(b))
-            .take(limit + 1)
-            .map(|b| q.filter(&b))
-            .collect();
-        let has_more = filtered.len() > limit;
-        filtered.truncate(limit);
-        let next_after = filtered.last().map(|b| b.sequence);
-        json!({"session_id":self.session,"schema_version":1,"sequence":latest,"oldest_sequence":oldest,"history_gap":q.after.is_some_and(|a|a<lost_through),"lost_through_sequence":lost_through,"has_more":has_more,"next_after":next_after,"batches":filtered})
-    }
-    fn compact_snapshot(&self, q: &Filter) -> io::Result<Value> {
-        let mut all: Vec<Arc<SampleBatch>> = self
-            .normal
-            .lock()
-            .unwrap()
-            .history
-            .iter()
-            .map(|(b, _)| b.clone())
-            .collect();
-        all.extend(
-            self.trace_store
-                .lock()
-                .unwrap()
-                .history
-                .iter()
-                .map(|(b, _)| b.clone()),
-        );
-        all.sort_by_key(|b| b.sequence);
-        let limit = q.limit.unwrap_or(1000);
         let selected: Vec<_> = all
             .into_iter()
             .filter(|b| q.matches(b))
@@ -326,6 +295,7 @@ impl App {
             .collect::<io::Result<Vec<_>>>()?;
         Ok(
             json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":self.session,
+            "sequence":latest,"oldest_sequence":oldest,"history_gap":q.after.is_some_and(|a|a<lost_through),"lost_through_sequence":lost_through,
             "dictionary":{"groups":compact::GROUPS,"statuses":compact::STATUSES,"process_fields":compact::PROCESS_FIELDS,
                 "metrics":self.compact_catalog.dictionary()},"batches":selected,"has_more":has_more,"next_after":selected.last().and_then(|b|b[0].as_u64())}),
         )
@@ -402,6 +372,8 @@ async fn capabilities(State(app): State<Shared>) -> Json<Value> {
     value["session_id"] = json!(app.session);
     value["wire_schema"] = json!(compact::WIRE_SCHEMA);
     value["schema_version"] = json!(1);
+    value["dictionary"] = json!({"groups":compact::GROUPS,"statuses":compact::STATUSES,
+        "process_fields":compact::PROCESS_FIELDS,"metrics":app.compact_catalog.dictionary()});
     value["recommended_frontend_version"] = json!(env!("CARGO_PKG_VERSION"));
     Json(value)
 }
@@ -416,14 +388,9 @@ async fn current(State(app): State<Shared>, Query(q): Query<Filter>) -> Response
     if !q.validate() {
         return error(StatusCode::BAD_REQUEST, "invalid_query");
     }
-    if q.wire.as_deref() == Some("compact") {
-        return current_compact(State(app)).await;
-    }
-    let batches: Vec<_> = app.current().into_iter().map(|b| (*b).clone()).collect();
-    Json(
-        json!({"session_id":app.session,"batches":batches,"trace":app.trace.lock().unwrap().json()}),
-    ).into_response()
+    current_compact(State(app)).await
 }
+
 async fn current_compact(State(app): State<Shared>) -> Response {
     let batches = app.current();
     let mut encoded = Vec::new();
@@ -441,14 +408,12 @@ async fn series(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
     if !q.validate() {
         return error(StatusCode::BAD_REQUEST, "invalid_query");
     }
-    if q.wire.as_deref() == Some("compact") {
-        return match app.compact_snapshot(&q) {
-            Ok(value) => Json(value).into_response(),
-            Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "compact_encode_failed"),
-        };
+    match app.snapshot(&q) {
+        Ok(value) => Json(value).into_response(),
+        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "compact_encode_failed"),
     }
-    Json(app.snapshot(&q)).into_response()
 }
+
 #[derive(Deserialize)]
 struct ApiRange {
     min: u32,
@@ -544,7 +509,7 @@ async fn stream(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
             _=heartbeat.tick()=>{yield Ok(Event::default().event("heartbeat").data(json!({"sequence":app.sequence.load(Ordering::Relaxed)}).to_string()));},
             notice=rx.recv()=>{match notice{
                 Ok(0)=>{let value=app.trace.lock().unwrap().json();yield Ok(Event::default().event("trace").data(value.to_string()));},
-                Ok(sequence)=>{let Some(batch)=app.batch(sequence)else{yield Ok(Event::default().event("error").data("{\"error\":\"history_gap\"}"));break};if q.matches(&batch){let batch=q.filter(&batch);let data=if q.wire.as_deref()==Some("compact"){app.compact(&batch).map(|v|json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":session,"batch":v.value()}).to_string())}else{serde_json::to_string(&batch).map_err(|_|io::Error::other("encode"))};match data{Ok(data)=>yield Ok(Event::default().event("sample").id(sequence.to_string()).data(data)),Err(_)=>break}}},
+                Ok(sequence)=>{let Some(batch)=app.batch(sequence)else{yield Ok(Event::default().event("error").data("{\"error\":\"history_gap\"}"));break};if q.matches(&batch){let batch=q.filter(&batch);let data=app.compact(&batch).map(|v|json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":session,"batch":v.value()}).to_string());match data{Ok(data)=>yield Ok(Event::default().event("sample").id(sequence.to_string()).data(data)),Err(_)=>break}}},
                 Err(_)=>{yield Ok(Event::default().event("error").data("{\"error\":\"slow_client\"}"));break;}
             }}
         }}
@@ -623,21 +588,23 @@ async fn export(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
     )
         .into_response()
 }
-async fn processes(State(app): State<Shared>) -> Json<Value> {
-    let b = app
+async fn processes(State(app): State<Shared>) -> Response {
+    let batch = app
         .normal
         .lock()
         .unwrap()
         .latest()
         .into_iter()
         .find(|b| b.group == "process");
-    Json(match b {
-        Some(b) => {
-            json!({"session_id":app.session,"sequence":b.sequence,"uptime_s":b.uptime_s,"complete":b.complete,"processes":b.processes,"diagnostics":b.diagnostics})
-        }
-        None => json!({"processes":[],"complete":false}),
-    })
+    match batch {
+        Some(batch) => match app.compact(&batch) {
+            Ok(wire) => Json(wire.envelope(&app.session)).into_response(),
+            Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "compact_encode_failed"),
+        },
+        None => Json(json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":app.session,"batches":[]})).into_response(),
+    }
 }
+
 async fn trace_status(State(app): State<Shared>) -> Json<Value> {
     Json(app.trace.lock().unwrap().json())
 }
@@ -761,7 +728,10 @@ async fn process_current(State(app): State<Shared>, Path(pid): Path<u32>) -> Res
         .find(|(b, _)| b.processes.iter().any(|p| p.identity.pid == pid))
         .map(|(b, _)| b.clone());
     match b {
-        Some(b) => Json((*b).clone()).into_response(),
+        Some(b) => match app.compact(&b) {
+            Ok(wire) => Json(wire.envelope(&app.session)).into_response(),
+            Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "compact_encode_failed"),
+        },
         None => error(StatusCode::NOT_FOUND, "no_trace_data"),
     }
 }
@@ -775,7 +745,7 @@ async fn process_series(
     }
     q.group = Some("trace".into());
     q.pid = Some(pid);
-    Json(app.snapshot(&q)).into_response()
+    series(State(app), Query(q)).await
 }
 fn prom_escape(s: &str) -> String {
     s.replace('\\', "\\\\")

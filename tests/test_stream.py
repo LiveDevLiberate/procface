@@ -12,6 +12,7 @@ import urllib.request
 import urllib.error
 from urllib.parse import urlsplit
 from test_e2e import Daemon, fixture, cli, TOKEN
+from compact_wire import decode
 
 
 def stream(daemon, path="/api/v1/stream"):
@@ -26,7 +27,8 @@ def event(response):
         if not line:
             raise AssertionError("SSE 意外断开")
         if line == "\n" and data:
-            return name, json.loads("\n".join(data))
+            value=json.loads("\n".join(data))
+            return name, decode(value) if name=='sample' else value
         if line.startswith("event:"):
             name = line[6:].strip()
         if line.startswith("data:"):
