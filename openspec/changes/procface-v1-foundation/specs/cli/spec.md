@@ -4,7 +4,7 @@
 
 ### Requirement: Native output contract
 
-CLI MUST 使用 `sample`、`trace`、`daemon` 和 `capabilities` 原生命令，并支持 table、TSV、JSON、JSONL。JSON/JSONL MUST 默认使用统一紧凑协议；table 和显式 `--expanded` MAY 展开名称、单位和状态。TSV 导出 MUST 保留固定列顺序的可读格式，间隔不得小于 1 秒。
+CLI MUST 使用 `sample`、`trace`、`daemon` 和 `capabilities` 原生命令，并支持 table、TSV、JSON、JSONL。CLI 的 table、TSV、JSON 和 JSONL 默认 MUST 输出带字段名、指标名、实体名、单位和状态的可读格式；CLI 不直接输出 API 紧凑数组。间隔不得小于 1 秒。
 
 #### Scenario: JSONL sampling
 - **WHEN** 用户执行 `procface sample --format jsonl`
