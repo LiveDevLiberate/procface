@@ -1,5 +1,6 @@
 use crate::{
     collector::{self, Collector},
+    compact::{self, Catalog, EncodedBatch, Entities},
     model::*,
     store::Store,
     trace::{TraceOptions, Tracer},
@@ -113,6 +114,8 @@ struct App {
     errors: AtomicU64,
     skipped: AtomicU64,
     persistence: crate::persistence::Persistence,
+    compact_catalog: Catalog,
+    compact_entities: Mutex<Entities>,
 }
 type Shared = Arc<App>;
 fn error(code: StatusCode, reason: &str) -> Response {
@@ -186,6 +189,10 @@ async fn guard(State(app): State<Shared>, request: Request<Body>, next: Next) ->
     response
 }
 impl App {
+    fn compact(&self, b: &SampleBatch) -> io::Result<EncodedBatch> {
+        let mut entities = self.compact_entities.lock().unwrap();
+        compact::encode(b, &self.compact_catalog, &mut entities)
+    }
     fn publish(&self, mut b: SampleBatch) {
         for message in &b.diagnostics {
             eprintln!("{message}");
@@ -201,6 +208,13 @@ impl App {
         for sample in &mut b.samples {
             sample.session_id = b.session_id.clone();
             sample.sequence = b.sequence;
+        }
+        match self.compact(&b) {
+            Ok(encoded) => b.wire = Some(Arc::new(encoded)),
+            Err(error) => {
+                eprintln!("紧凑编码失败: {error}");
+                self.errors.fetch_add(1, Ordering::Relaxed);
+            }
         }
         let sequence = b.sequence;
         let is_trace = b.group == "trace";
@@ -273,6 +287,49 @@ impl App {
         let next_after = filtered.last().map(|b| b.sequence);
         json!({"session_id":self.session,"schema_version":1,"sequence":latest,"oldest_sequence":oldest,"history_gap":q.after.is_some_and(|a|a<lost_through),"lost_through_sequence":lost_through,"has_more":has_more,"next_after":next_after,"batches":filtered})
     }
+    fn compact_snapshot(&self, q: &Filter) -> io::Result<Value> {
+        let mut all: Vec<Arc<SampleBatch>> = self
+            .normal
+            .lock()
+            .unwrap()
+            .history
+            .iter()
+            .map(|(b, _)| b.clone())
+            .collect();
+        all.extend(
+            self.trace_store
+                .lock()
+                .unwrap()
+                .history
+                .iter()
+                .map(|(b, _)| b.clone()),
+        );
+        all.sort_by_key(|b| b.sequence);
+        let limit = q.limit.unwrap_or(1000);
+        let selected: Vec<_> = all
+            .into_iter()
+            .filter(|b| q.matches(b))
+            .take(limit + 1)
+            .collect();
+        let has_more = selected.len() > limit;
+        let selected = selected
+            .into_iter()
+            .take(limit)
+            .map(|b| {
+                let filtered = q.filter(&b);
+                if let Some(wire) = &filtered.wire {
+                    Ok(wire.value())
+                } else {
+                    self.compact(&filtered).map(|v| v.value())
+                }
+            })
+            .collect::<io::Result<Vec<_>>>()?;
+        Ok(
+            json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":self.session,
+            "dictionary":{"groups":compact::GROUPS,"statuses":compact::STATUSES,"process_fields":compact::PROCESS_FIELDS,
+                "metrics":self.compact_catalog.dictionary()},"batches":selected,"has_more":has_more,"next_after":selected.last().and_then(|b|b[0].as_u64())}),
+        )
+    }
 }
 #[derive(Clone, Debug, Default, Deserialize)]
 struct Filter {
@@ -287,6 +344,7 @@ struct Filter {
     group: Option<String>,
     format: Option<String>,
     follow: Option<u8>,
+    wire: Option<String>,
 }
 impl Filter {
     fn validate(&self) -> bool {
@@ -303,6 +361,7 @@ impl Filter {
                 .group
                 .as_deref()
                 .is_none_or(|g| matches!(g, "system" | "process" | "trace"))
+            && self.wire.as_deref().is_none_or(|w| w == "compact")
     }
     fn matches(&self, b: &SampleBatch) -> bool {
         self.after.is_none_or(|n| b.sequence > n)
@@ -315,6 +374,7 @@ impl Filter {
     }
     fn filter(&self, b: &SampleBatch) -> SampleBatch {
         let mut b = b.clone();
+        b.wire = None;
         b.samples.retain(|s| {
             self.metric
                 .as_ref()
@@ -340,6 +400,9 @@ async fn capabilities(State(app): State<Shared>) -> Json<Value> {
     value["sensitive_enabled"] = json!(app.args.diagnostic_sensitive);
     value["persistence_enabled"] = json!(app.args.sqlite_path.is_some());
     value["session_id"] = json!(app.session);
+    value["wire_schema"] = json!(compact::WIRE_SCHEMA);
+    value["schema_version"] = json!(1);
+    value["recommended_frontend_version"] = json!(env!("CARGO_PKG_VERSION"));
     Json(value)
 }
 async fn health(State(app): State<Shared>) -> Json<Value> {
@@ -349,15 +412,40 @@ async fn health(State(app): State<Shared>) -> Json<Value> {
         json!({"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap()}),
     )
 }
-async fn current(State(app): State<Shared>) -> Json<Value> {
+async fn current(State(app): State<Shared>, Query(q): Query<Filter>) -> Response {
+    if !q.validate() {
+        return error(StatusCode::BAD_REQUEST, "invalid_query");
+    }
+    if q.wire.as_deref() == Some("compact") {
+        return current_compact(State(app)).await;
+    }
     let batches: Vec<_> = app.current().into_iter().map(|b| (*b).clone()).collect();
     Json(
         json!({"session_id":app.session,"batches":batches,"trace":app.trace.lock().unwrap().json()}),
-    )
+    ).into_response()
+}
+async fn current_compact(State(app): State<Shared>) -> Response {
+    let batches = app.current();
+    let mut encoded = Vec::new();
+    for b in batches {
+        match app.compact(&b) {
+            Ok(v) => encoded.push(v.value()),
+            Err(_) => return error(StatusCode::INTERNAL_SERVER_ERROR, "compact_encode_failed"),
+        }
+    }
+    Json(json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":app.session,
+        "dictionary":{"groups":compact::GROUPS,"statuses":compact::STATUSES,"process_fields":compact::PROCESS_FIELDS,
+        "metrics":app.compact_catalog.dictionary()},"batches":encoded,"trace":app.trace.lock().unwrap().json()})).into_response()
 }
 async fn series(State(app): State<Shared>, Query(q): Query<Filter>) -> Response {
     if !q.validate() {
         return error(StatusCode::BAD_REQUEST, "invalid_query");
+    }
+    if q.wire.as_deref() == Some("compact") {
+        return match app.compact_snapshot(&q) {
+            Ok(value) => Json(value).into_response(),
+            Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "compact_encode_failed"),
+        };
     }
     Json(app.snapshot(&q)).into_response()
 }
@@ -371,17 +459,25 @@ struct Declaration {
     frontend_version: String,
     build_id: String,
     api_compatibility: ApiRange,
+    wire_schema: Option<String>,
 }
 #[derive(Deserialize)]
 struct Handshake {
     frontend_version: String,
     build_id: String,
     api_compatibility: ApiRange,
+    wire_schema: Option<String>,
     development: Option<bool>,
     payload: Option<String>,
     signature: Option<String>,
 }
 fn verify_handshake(app: &App, h: &Handshake) -> Result<bool, &'static str> {
+    if h.wire_schema
+        .as_deref()
+        .is_some_and(|s| s != compact::WIRE_SCHEMA)
+    {
+        return Err("wire_incompatible");
+    }
     if h.api_compatibility.min > 1
         || h.api_compatibility.max < 1
         || h.api_compatibility.min > h.api_compatibility.max
@@ -412,6 +508,8 @@ fn verify_handshake(app: &App, h: &Handshake) -> Result<bool, &'static str> {
         || d.build_id != h.build_id
         || d.api_compatibility.min != h.api_compatibility.min
         || d.api_compatibility.max != h.api_compatibility.max
+        || d.wire_schema.as_deref().unwrap_or(compact::WIRE_SCHEMA)
+            != h.wire_schema.as_deref().unwrap_or(compact::WIRE_SCHEMA)
     {
         return Err("declaration_mismatch");
     }
@@ -420,7 +518,7 @@ fn verify_handshake(app: &App, h: &Handshake) -> Result<bool, &'static str> {
 async fn handshake(State(app): State<Shared>, Json(h): Json<Handshake>) -> Response {
     match verify_handshake(&app, &h) {
         Ok(development) => {
-            Json(json!({"accepted":true,"development":development,"api_version":1})).into_response()
+            Json(json!({"accepted":true,"development":development,"api_version":1,"wire_schema":compact::WIRE_SCHEMA,"recommended_frontend_version":env!("CARGO_PKG_VERSION")})).into_response()
         }
         Err(reason) => (
             StatusCode::FORBIDDEN,
@@ -440,28 +538,40 @@ async fn stream(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
     let session = app.session.clone();
     let sequence = app.sequence.load(Ordering::Relaxed);
     let stream = async_stream::stream! {
-        let _permit=permit;yield Ok::<Event,Infallible>(Event::default().event("connected").data(json!({"session_id":session,"sequence":sequence}).to_string()));
+        let _permit=permit;yield Ok::<Event,Infallible>(Event::default().event("connected").data(json!({"session_id":session,"sequence":sequence,"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"dictionary":{"groups":compact::GROUPS,"statuses":compact::STATUSES,"process_fields":compact::PROCESS_FIELDS,"metrics":app.compact_catalog.dictionary()}}).to_string()));
         let mut heartbeat=tokio::time::interval(Duration::from_secs(15));heartbeat.tick().await;
         loop{tokio::select!{
             _=heartbeat.tick()=>{yield Ok(Event::default().event("heartbeat").data(json!({"sequence":app.sequence.load(Ordering::Relaxed)}).to_string()));},
             notice=rx.recv()=>{match notice{
                 Ok(0)=>{let value=app.trace.lock().unwrap().json();yield Ok(Event::default().event("trace").data(value.to_string()));},
-                Ok(sequence)=>{let Some(batch)=app.batch(sequence)else{yield Ok(Event::default().event("error").data("{\"error\":\"history_gap\"}"));break};if q.matches(&batch){let batch=q.filter(&batch);match serde_json::to_string(&batch){Ok(data)=>yield Ok(Event::default().event("sample").id(sequence.to_string()).data(data)),Err(_)=>break}}},
+                Ok(sequence)=>{let Some(batch)=app.batch(sequence)else{yield Ok(Event::default().event("error").data("{\"error\":\"history_gap\"}"));break};if q.matches(&batch){let batch=q.filter(&batch);let data=if q.wire.as_deref()==Some("compact"){app.compact(&batch).map(|v|json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":session,"batch":v.value()}).to_string())}else{serde_json::to_string(&batch).map_err(|_|io::Error::other("encode"))};match data{Ok(data)=>yield Ok(Event::default().event("sample").id(sequence.to_string()).data(data)),Err(_)=>break}}},
                 Err(_)=>{yield Ok(Event::default().event("error").data("{\"error\":\"slow_client\"}"));break;}
             }}
         }}
     };
     Sse::new(stream).into_response()
 }
-fn encode_export(b: &SampleBatch, format: &str) -> io::Result<Vec<u8>> {
+fn encode_export(app: &App, b: &SampleBatch, format: &str) -> io::Result<Vec<u8>> {
     let mut out = Vec::new();
+    if format != "tsv" {
+        let encoded = app
+            .compact(b)
+            .map_err(|e| io::Error::other(e.to_string()))?;
+        serde_json::to_writer(
+            &mut out,
+            &json!({
+                "wire_schema": compact::WIRE_SCHEMA,
+                "schema_version": 1,
+                "session_id": app.session,
+                "dictionary": {"groups":compact::GROUPS,"statuses":compact::STATUSES,"process_fields":compact::PROCESS_FIELDS,"metrics":app.compact_catalog.dictionary()},
+                "batch": encoded.value()
+            }),
+        )?;
+        out.push(b'\n');
+        return Ok(out);
+    }
     for s in &b.samples {
-        if format == "tsv" {
-            crate::model::write_tsv(&mut out, s)?;
-        } else {
-            serde_json::to_writer(&mut out, s)?;
-            out.push(b'\n');
-        }
+        crate::model::write_tsv(&mut out, s)?;
     }
     Ok(out)
 }
@@ -504,8 +614,8 @@ async fn export(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
     };
     let stream = async_stream::stream! {let _permit=permit;
         if format=="tsv"{yield Ok::<Bytes,io::Error>(Bytes::from(format!("{}\n",TSV_HEADER)));}
-        for batch in initial{match encode_export(&q.filter(&batch),&format){Ok(bytes)=>yield Ok(Bytes::from(bytes)),Err(e)=>{yield Err(e);return;}}}
-        if q.follow==Some(1){loop{match rx.recv().await{Ok(sequence)if sequence>last=>{let Some(batch)=app.batch(sequence)else{yield Err(io::Error::other("history_gap"));break};if q.matches(&batch){match encode_export(&q.filter(&batch),&format){Ok(bytes)=>yield Ok(Bytes::from(bytes)),Err(e)=>{yield Err(e);break;}}}},Ok(_)=>{},Err(_)=>{yield Err(io::Error::other("slow_client"));break;}}}}
+        for batch in initial{match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>yield Ok(Bytes::from(bytes)),Err(e)=>{yield Err(e);return;}}}
+        if q.follow==Some(1){loop{match rx.recv().await{Ok(sequence)if sequence>last=>{let Some(batch)=app.batch(sequence)else{yield Err(io::Error::other("history_gap"));break};if q.matches(&batch){match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>yield Ok(Bytes::from(bytes)),Err(e)=>{yield Err(e);break;}}}},Ok(_)=>{},Err(_)=>{yield Err(io::Error::other("slow_client"));break;}}}}
     };
     (
         [(axum::http::header::CONTENT_TYPE, content_type)],
@@ -867,6 +977,8 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
         errors: AtomicU64::new(0),
         skipped: AtomicU64::new(0),
         persistence,
+        compact_catalog: compact::Catalog::builtin()?,
+        compact_entities: Mutex::new(compact::Entities::default()),
         trace: Mutex::new(TraceControl {
             state: "idle".into(),
             options: None,

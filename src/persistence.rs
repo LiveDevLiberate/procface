@@ -6,6 +6,7 @@ mod tests {
     use crate::model::{random_id, Kind, Sample, Status};
     fn batch(seq: u64, uptime: f64, payload: usize) -> Arc<SampleBatch> {
         Arc::new(SampleBatch {
+            wire: None,
             schema_version: 1,
             session_id: "test-session".into(),
             sequence: seq,

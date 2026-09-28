@@ -212,6 +212,7 @@ impl Collector {
             self.last_wall = wall;
         }
         SampleBatch {
+            wire: None,
             schema_version: 1,
             session_id: self.session_id.clone(),
             sequence: self.sequence,

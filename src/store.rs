@@ -22,6 +22,7 @@ impl Store {
     }
     pub fn estimate(b: &SampleBatch) -> usize {
         std::mem::size_of::<SampleBatch>()
+            + b.wire.as_ref().map_or(0, |wire| wire.estimated_bytes())
             + b.session_id.capacity()
             + b.group.capacity()
             + b.samples.capacity() * std::mem::size_of::<crate::model::Sample>()
@@ -34,10 +35,7 @@ impl Store {
                         + s.metric.capacity()
                         + s.entity.capacity()
                         + s.unit.capacity()
-                        + match &s.value {
-                            serde_json::Value::String(v) => v.capacity(),
-                            _ => 0,
-                        }
+                        + crate::compact::value_heap_bytes(&s.value)
                 })
                 .sum::<usize>()
             + b.processes
@@ -124,6 +122,7 @@ mod tests {
     use crate::model::random_id;
     fn b(seq: u64, up: f64) -> Arc<SampleBatch> {
         Arc::new(SampleBatch {
+            wire: None,
             schema_version: 1,
             session_id: random_id().unwrap(),
             sequence: seq,

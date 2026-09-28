@@ -46,16 +46,42 @@ pub const PROCESS_METRICS: [&str; 7] = [
 ];
 
 #[derive(Clone, Debug, Serialize)]
-pub struct Metric(pub u32, pub String, pub String, pub Kind);
+pub struct Metric(pub u64, pub String, pub String, pub Kind);
 
 /// 发布目录必须显式给出编号；未知指标返回错误，不临时分配跨版本不稳定编号。
 pub struct Catalog(HashMap<String, Metric>);
 impl Catalog {
+    pub fn builtin() -> io::Result<Self> {
+        let mut metrics = Vec::new();
+        for line in include_str!("metric-catalog.tsv").lines().skip(1) {
+            let fields: Vec<_> = line.split('\t').collect();
+            if fields.len() != 4 {
+                return Err(io::Error::other("指标目录列数错误"));
+            }
+            let kind = match fields[3] {
+                "gauge" => Kind::Gauge,
+                "counter" => Kind::Counter,
+                "rate" => Kind::Rate,
+                _ => return Err(io::Error::other("指标目录类型错误")),
+            };
+            metrics.push(Metric(
+                fields[0].parse().map_err(io::Error::other)?,
+                fields[1].into(),
+                fields[2].into(),
+                kind,
+            ));
+        }
+        Self::new(metrics)
+    }
     pub fn new(metrics: Vec<Metric>) -> io::Result<Self> {
         let mut names = HashMap::new();
         let mut ids = std::collections::HashSet::new();
         for metric in metrics {
-            if metric.0 == 0 || !ids.insert(metric.0) || names.contains_key(&metric.1) {
+            if metric.0 == 0
+                || metric.0 >= 1u64 << 32
+                || !ids.insert(metric.0)
+                || names.contains_key(&metric.1)
+            {
                 return Err(io::Error::other("重复或非法指标编号"));
             }
             names.insert(metric.1.clone(), metric);
@@ -66,6 +92,22 @@ impl Catalog {
         let mut metrics: Vec<_> = self.0.values().collect();
         metrics.sort_by_key(|m| m.0);
         metrics
+    }
+    fn resolve(&self, name: &str) -> Option<Metric> {
+        self.0.get(name).cloned().or_else(|| {
+            // 保留整个 u32 TID 编号区间，线程编号不占用静态指标目录。
+            let tid = name.strip_prefix("trace.thread.")?.strip_suffix(".stat")?;
+            let number = tid.parse::<u32>().ok()?;
+            if number == 0 || number.to_string() != tid {
+                return None;
+            }
+            Some(Metric(
+                (1u64 << 32) + u64::from(number),
+                name.into(),
+                "text".into(),
+                Kind::Gauge,
+            ))
+        })
     }
 }
 
@@ -96,6 +138,7 @@ impl Entities {
     }
 }
 
+#[derive(Debug)]
 pub struct EncodedBatch {
     pub sequence: u64,
     uptime: f64,
@@ -103,12 +146,35 @@ pub struct EncodedBatch {
     group: u8,
     complete: bool,
     diagnostics: Vec<String>,
-    metrics: BTreeMap<u32, Metric>,
+    metrics: BTreeMap<u64, Metric>,
     entities: BTreeMap<u64, Arc<Entity>>,
     samples: Vec<Value>,
     processes: Vec<Value>,
 }
 impl EncodedBatch {
+    /// 共享目录按每批次保守重复计量，避免低估缓存预算。
+    pub fn estimated_bytes(&self) -> usize {
+        std::mem::size_of::<Self>()
+            + self.diagnostics.capacity() * std::mem::size_of::<String>()
+            + self.diagnostics.iter().map(String::capacity).sum::<usize>()
+            + self
+                .metrics
+                .values()
+                .map(|m| std::mem::size_of::<Metric>() + m.1.capacity() + m.2.capacity() + 64)
+                .sum::<usize>()
+            + self
+                .entities
+                .values()
+                .map(|e| std::mem::size_of::<Entity>() + e.1.capacity() + 64)
+                .sum::<usize>()
+            + (self.samples.capacity() + self.processes.capacity()) * std::mem::size_of::<Value>()
+            + self
+                .samples
+                .iter()
+                .chain(&self.processes)
+                .map(value_heap_bytes)
+                .sum::<usize>()
+    }
     /// 每个批次携带其引用的字典子集，支持窗口中任意位置开始的独立解码。
     /// 字典位于 samples/processes 之前；接收方可覆盖相同定义。
     pub fn value(&self) -> Value {
@@ -121,6 +187,24 @@ impl EncodedBatch {
         json!({"wire_schema":WIRE_SCHEMA,"schema_version":1,"session_id":session,
             "dictionary":{"groups":GROUPS,"statuses":STATUSES,"process_fields":PROCESS_FIELDS},
             "batches":[self.value()]})
+    }
+}
+
+/// JSON 的嵌套文本、数组和对象也占缓存，不能只计最外层 Value。
+pub fn value_heap_bytes(value: &Value) -> usize {
+    match value {
+        Value::String(s) => s.capacity(),
+        Value::Array(values) => {
+            values.capacity() * std::mem::size_of::<Value>()
+                + values.iter().map(value_heap_bytes).sum::<usize>()
+        }
+        Value::Object(values) => values
+            .iter()
+            .map(|(k, v)| {
+                64 + std::mem::size_of::<(String, Value)>() + k.capacity() + value_heap_bytes(v)
+            })
+            .sum(),
+        _ => 0,
     }
 }
 
@@ -171,8 +255,7 @@ pub fn encode(
     }
     for s in &b.samples {
         let metric = catalog
-            .0
-            .get(&s.metric)
+            .resolve(&s.metric)
             .ok_or_else(|| io::Error::other(format!("未登记指标: {}", s.metric)))?;
         if metric.2 != s.unit || metric.3 != s.kind {
             return Err(io::Error::other("指标目录单位或类型不一致"));
@@ -280,6 +363,7 @@ mod tests {
             samples.push(s);
         }
         SampleBatch {
+            wire: None,
             schema_version: 1,
             session_id: "session".into(),
             sequence: 7,
@@ -297,7 +381,7 @@ mod tests {
             b.samples
                 .iter()
                 .enumerate()
-                .map(|(i, s)| Metric(i as u32 + 1, s.metric.clone(), s.unit.clone(), s.kind))
+                .map(|(i, s)| Metric(i as u64 + 1, s.metric.clone(), s.unit.clone(), s.kind))
                 .collect(),
         )
         .unwrap()
@@ -432,5 +516,112 @@ mod tests {
             Metric(1, "b".into(), "".into(), Kind::Gauge)
         ])
         .is_err());
+    }
+
+    #[test]
+    fn builtin_catalog_covers_parsers_and_dynamic_threads() {
+        use crate::parsers;
+        let catalog = Catalog::builtin().unwrap();
+        let mut points = parsers::memory("");
+        points.extend(parsers::vm(""));
+        points.extend(parsers::load(""));
+        points.extend(
+            parsers::stat("cpu 1 2 3 4\nctxt 1\nprocesses 2\nprocs_running 1\nprocs_blocked 0").0,
+        );
+        points.extend(parsers::disks("8 0 sda 1 2 3 4 5 6 7 8 9 10 11"));
+        points.extend(parsers::network(
+            "eth0: 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16",
+        ));
+        for point in points {
+            let entry = catalog
+                .resolve(&point.metric)
+                .expect("解析器指标必须已登记");
+            assert_eq!((entry.2, entry.3), (point.unit.clone(), point.kind));
+            if let Some(rate) = point.rate_metric {
+                let entry = catalog.resolve(&rate).unwrap();
+                assert_eq!(
+                    (entry.2, entry.3),
+                    (format!("{}/second", point.unit), Kind::Rate)
+                );
+            }
+        }
+        assert_eq!(catalog.resolve("cpu.usage").unwrap().0, 10);
+        assert_eq!(
+            catalog.resolve("trace.thread.4294967295.stat").unwrap().0,
+            8589934591
+        );
+        for name in [
+            "trace.thread.0.stat",
+            "trace.thread.01.stat",
+            "trace.thread.4294967296.stat",
+            "trace.thread.x.stat",
+        ] {
+            assert!(catalog.resolve(name).is_none());
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn fixture_system_process_and_trace_use_published_catalog() {
+        use crate::{
+            collector::{current_uid, Collector},
+            trace::{TraceOptions, Tracer},
+        };
+        use std::fs;
+        let root = std::env::temp_dir().join(format!(
+            "procface-wire-{}",
+            crate::model::random_id().unwrap()
+        ));
+        fs::create_dir_all(root.join("100/task/100")).unwrap();
+        fs::write(root.join("uptime"), "10 0\n").unwrap();
+        let stat = "100 (worker) R 1 0 0 0 0 0 0 0 0 0 10 20 0 0 0 0 2 0 123 4096 7\n";
+        fs::write(root.join("100/stat"), stat).unwrap();
+        fs::write(root.join("100/task/100/stat"), stat).unwrap();
+        fs::write(
+            root.join("100/status"),
+            format!(
+                "Name:\tworker\nUid:\t{}\t{}\t{}\t{}\n",
+                current_uid(),
+                current_uid(),
+                current_uid(),
+                current_uid()
+            ),
+        )
+        .unwrap();
+        fs::write(root.join("100/io"),"rchar: 1\nwchar: 2\nsyscr: 3\nsyscw: 4\nread_bytes: 5\nwrite_bytes: 6\ncancelled_write_bytes: 7\n").unwrap();
+        let catalog = Catalog::builtin().unwrap();
+        let mut entities = Entities::default();
+        let mut collector = Collector::new(root.clone()).unwrap();
+        let groups = ["time", "cpu", "memory", "load", "vm", "disk", "network"].map(String::from);
+        let system = collector.system(&groups).unwrap();
+        encode(&system, &catalog, &mut entities).unwrap();
+        let processes = collector.processes().unwrap();
+        assert_eq!(processes.processes.len(), 1);
+        assert_eq!(
+            expanded(&encode(&processes, &catalog, &mut entities).unwrap().value()),
+            expected(&processes)
+        );
+        let mut tracer = Tracer::new(
+            root.clone(),
+            TraceOptions {
+                pid: 100,
+                extended: true,
+                threads: true,
+                sensitive: cfg!(feature = "diagnostic"),
+                budget_ms: 10000,
+            },
+            current_uid(),
+        )
+        .unwrap();
+        let trace = tracer.sample().unwrap();
+        assert!(trace
+            .samples
+            .iter()
+            .any(|s| s.metric == "trace.thread.100.stat"));
+        assert_eq!(
+            expanded(&encode(&trace, &catalog, &mut entities).unwrap().value()),
+            expected(&trace)
+        );
+        fs::remove_dir_all(root).unwrap();
     }
 }

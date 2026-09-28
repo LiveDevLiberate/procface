@@ -61,6 +61,9 @@ pub struct ProcessInfo {
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SampleBatch {
+    /// 仅 daemon 缓存使用；CLI 与 SQLite 序列化保持可读并独立于内存字典。
+    #[serde(skip)]
+    pub wire: Option<std::sync::Arc<crate::compact::EncodedBatch>>,
     pub schema_version: u32,
     pub session_id: String,
     pub sequence: u64,
