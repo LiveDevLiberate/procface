@@ -1,0 +1,108 @@
+{
+  "environment": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "cpu": "AMD Ryzen 7 7800X3D 8-Core Processor",
+  "logical_cpus": 8,
+  "mem_total": "MemTotal:        8132224 kB",
+  "binary_sha256": "31641b546511df5a99d60370f4fa8f8cf58f20e8e2e15a2e1ebc037780779ef4",
+  "binary_bytes": 1743160,
+  "sampling_seconds": 1,
+  "warmup_seconds": 60,
+  "measurement_seconds": 30,
+  "trace_target": "sleep，extended+threads，非敏感普通版",
+  "fixture": false,
+  "results": [
+    {
+      "scenario": "采集加单个SSE客户端",
+      "duration_s": 90.58473493100064,
+      "steady_seconds": 30.211896062999585,
+      "cpu_percent_one_core": 0.33099544560683725,
+      "rss_end_bytes": 6258688,
+      "rss_sampled_peak_bytes": 6270976,
+      "rss_hwm_bytes": 6799360,
+      "steady_rss_min_bytes": 6189056,
+      "threads": 3,
+      "sse_bytes_per_second": 199630.86684209883,
+      "stream_errors": [],
+      "disconnect_after_seconds": [
+        30.004154559999733,
+        30.006336616001136
+      ],
+      "batches": {
+        "system": {
+          "samples": 692,
+          "processes": 0,
+          "complete": true
+        },
+        "process": {
+          "samples": 72,
+          "processes": 9,
+          "complete": true
+        }
+      },
+      "health": {
+        "dropped_batches": 0,
+        "errors": 0,
+        "memory_bytes": 4154130,
+        "persistence": {
+          "state": "disabled"
+        },
+        "sequence": 182,
+        "session_id": "30f392c84cf3a20e8afcccc47e5ea7f52692a17f90426d62f50ac29d5e3eff6c",
+        "skipped_rounds": 0,
+        "trace": {
+          "state": "idle"
+        },
+        "trace_memory_bytes": 0
+      }
+    },
+    {
+      "scenario": "采集加SSE与Trace",
+      "duration_s": 90.47328632499921,
+      "steady_seconds": 30.093791937999413,
+      "cpu_percent_one_core": 0.39875333838696503,
+      "rss_end_bytes": 7774208,
+      "rss_sampled_peak_bytes": 7774208,
+      "rss_hwm_bytes": 8372224,
+      "steady_rss_min_bytes": 7712768,
+      "threads": 4,
+      "sse_bytes_per_second": 208425.8777665017,
+      "stream_errors": [],
+      "disconnect_after_seconds": [
+        30.029722471999776,
+        30.003976875999797
+      ],
+      "batches": {
+        "trace": {
+          "samples": 36,
+          "processes": 1,
+          "complete": true
+        },
+        "system": {
+          "samples": 692,
+          "processes": 0,
+          "complete": true
+        },
+        "process": {
+          "samples": 72,
+          "processes": 9,
+          "complete": true
+        }
+      },
+      "health": {
+        "dropped_batches": 0,
+        "errors": 0,
+        "memory_bytes": 4154130,
+        "persistence": {
+          "state": "disabled"
+        },
+        "sequence": 270,
+        "session_id": "f4127d1ff097a238ab4466c8736914e09368b9d686780ae9472aee43a194daf9",
+        "skipped_rounds": 0,
+        "trace": {
+          "state": "running"
+        },
+        "trace_memory_bytes": 1269300
+      }
+    }
+  ]
+}

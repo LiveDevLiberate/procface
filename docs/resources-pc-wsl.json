@@ -1,0 +1,145 @@
+{
+  "environment": "Linux-6.18.33.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "cpu": "AMD Ryzen 7 7800X3D 8-Core Processor",
+  "logical_cpus": 8,
+  "mem_total": "MemTotal:        8132224 kB",
+  "binary_sha256": "31641b546511df5a99d60370f4fa8f8cf58f20e8e2e15a2e1ebc037780779ef4",
+  "binary_bytes": 1743160,
+  "sampling_seconds": 1,
+  "warmup_seconds": 60,
+  "measurement_seconds": 30,
+  "trace_target": "sleep，extended+threads，非敏感普通版",
+  "fixture": false,
+  "results": [
+    {
+      "scenario": "采集无客户端",
+      "duration_s": 91.04229710100117,
+      "steady_seconds": 30.410641557999043,
+      "cpu_percent_one_core": 0.26306580822185005,
+      "rss_end_bytes": 6197248,
+      "rss_sampled_peak_bytes": 6209536,
+      "rss_hwm_bytes": 6397952,
+      "steady_rss_min_bytes": 6176768,
+      "threads": 3,
+      "sse_bytes_per_second": 0.0,
+      "stream_errors": [],
+      "batches": {
+        "system": {
+          "samples": 692,
+          "processes": 0,
+          "complete": true
+        },
+        "process": {
+          "samples": 72,
+          "processes": 9,
+          "complete": true
+        }
+      },
+      "health": {
+        "dropped_batches": 0,
+        "errors": 0,
+        "memory_bytes": 4154130,
+        "persistence": {
+          "state": "disabled"
+        },
+        "sequence": 182,
+        "session_id": "a2a68291230bbe17fe8c76a908951454d1b8d648b921d1a26c55fefbedb9158f",
+        "skipped_rounds": 0,
+        "trace": {
+          "state": "idle"
+        },
+        "trace_memory_bytes": 0
+      }
+    },
+    {
+      "scenario": "采集加单个SSE客户端",
+      "duration_s": 91.16953661799926,
+      "steady_seconds": 30.401111761999346,
+      "cpu_percent_one_core": 0.19736120333269702,
+      "rss_end_bytes": 6221824,
+      "rss_sampled_peak_bytes": 6221824,
+      "rss_hwm_bytes": 6844416,
+      "steady_rss_min_bytes": 6197248,
+      "threads": 3,
+      "sse_bytes_per_second": 0.0,
+      "stream_errors": [],
+      "batches": {
+        "system": {
+          "samples": 692,
+          "processes": 0,
+          "complete": true
+        },
+        "process": {
+          "samples": 72,
+          "processes": 9,
+          "complete": true
+        }
+      },
+      "health": {
+        "dropped_batches": 0,
+        "errors": 0,
+        "memory_bytes": 4154130,
+        "persistence": {
+          "state": "disabled"
+        },
+        "sequence": 182,
+        "session_id": "a723ca9c8d2f3f9473545fa565b717c3e1b7f32459f250cce5aa0634b9c25bef",
+        "skipped_rounds": 0,
+        "trace": {
+          "state": "idle"
+        },
+        "trace_memory_bytes": 0
+      }
+    },
+    {
+      "scenario": "采集加SSE与Trace",
+      "duration_s": 90.83164811700044,
+      "steady_seconds": 30.182655606999106,
+      "cpu_percent_one_core": 0.39757933020371145,
+      "rss_end_bytes": 7790592,
+      "rss_sampled_peak_bytes": 7790592,
+      "rss_hwm_bytes": 7847936,
+      "steady_rss_min_bytes": 7716864,
+      "threads": 4,
+      "sse_bytes_per_second": 0.0,
+      "stream_errors": [],
+      "batches": {
+        "trace": {
+          "samples": 36,
+          "processes": 1,
+          "complete": true
+        },
+        "system": {
+          "samples": 692,
+          "processes": 0,
+          "complete": true
+        },
+        "process": {
+          "samples": 96,
+          "processes": 12,
+          "complete": true
+        }
+      },
+      "health": {
+        "dropped_batches": 0,
+        "errors": 0,
+        "memory_bytes": 4187384,
+        "persistence": {
+          "state": "disabled"
+        },
+        "sequence": 272,
+        "session_id": "de99dfbc6cf1faad0ea4a5776c01e2b709e194b949542488ec2dda0eeb8e6b1f",
+        "skipped_rounds": 0,
+        "trace": {
+          "state": "running"
+        },
+        "trace_memory_bytes": 1248381
+      }
+    }
+  ],
+  "measurement_notes": [
+    "后两个场景的 SSE 在约 30 秒 EOF，稳态区间流量为零，不能作为持续订阅开销；模拟自动重连后的有效测量见 resources-pc-wsl-clients.json。",
+    "并行运行着用户自己的 daemon；临时诊断进程会令当前用户 PID 数量轻微变化。",
+    "RSS 包含采集模型、缓存、线程栈等；health memory_bytes 只是缓存计量，不是 RSS。"
+  ]
+}
