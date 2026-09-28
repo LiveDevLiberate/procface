@@ -23,6 +23,9 @@ jobs:
       - run: node tools/test_frontend_stream.cjs
         env:
           PROCFACE_BROWSER_CHANNEL: chromium
+      - run: node tools/test_frontend_compact.cjs
+        env:
+          PROCFACE_BROWSER_CHANNEL: chromium
   test:
     runs-on: ubuntu-24.04
     steps:
@@ -40,6 +43,7 @@ jobs:
       - run: python3 tests/test_security.py --binary target/debug/procface
       - run: python3 tests/test_trace.py --binary target/debug/procface
       - run: python3 tests/test_stream.py --binary target/debug/procface
+      - run: python3 tests/test_compact.py --binary target/debug/procface
       - run: cargo build --locked --features diagnostic
       - run: python3 tests/test_e2e.py --binary target/debug/procface --diagnostic
       - run: python3 tests/test_trace.py --binary target/debug/procface --diagnostic

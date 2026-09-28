@@ -37,6 +37,18 @@ const http=require('node:http');
   assert.equal(result.unknown,true);assert.equal(result.unknownComplete,false);assert.deepEqual(result.unknownDiagnostics,['dictionary_missing']);
   assert.equal(result.recoveryGap.recovered,false);assert.equal(result.recoveryGap.to_sequence,2);
   assert.equal(result.warning,false);
+  const recovery=await page.evaluate(async()=>{
+   lastSequence=0;lastUptime=0;gaps=[];pendingGap=null;seen.clear();memoryBatches=[];compactMetrics.clear();compactEntities.clear();
+   const raw=[1,1,null,0,true,[],{metrics:[],entities:[]},[[999,888,12,0]],[]];
+   const restored=structuredClone(raw);restored[6]={metrics:[[999,'cpu.usage','percent','gauge']],entities:[[888,'cpu']]};
+   let requests=0;
+   api=async()=>{requests++;return new Response(writeJson({wire_schema:BUILD.wire_schema,session_id:session,batches:[restored],has_more:false}));};
+   const response=new Response('event: sample\ndata: '+writeJson({wire_schema:BUILD.wire_schema,session_id:session,batch:raw})+'\n\n');
+   try{await consume(response,new AbortController().signal,generation);}catch(e){if(e.message!=='实时流已关闭')throw e;}
+   return {requests,lastSequence,gap:gaps.at(-1),saved:memoryBatches.at(-1).batch.samples[0]};
+  });
+  assert.equal(recovery.requests,1);assert.equal(recovery.lastSequence,1);
+  assert.equal(recovery.gap.recovered,true);assert.equal(recovery.saved.metric,'cpu.usage');assert.equal(recovery.saved.value,12);
   console.log('紧凑前端验证通过：进程去重恢复、状态、u64、结构化 Trace、真实 IndexedDB 与独立解码。');
  }finally{await browser.close();await new Promise(r=>server.close(r));}
 })().catch(e=>{console.error(e);process.exitCode=1;});

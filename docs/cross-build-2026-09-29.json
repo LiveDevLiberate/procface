@@ -1,0 +1,48 @@
+{
+  "source_commit": "5dfd00ff59bde420a267e7308a1d68a9009b9775",
+  "rustc": "rustc 1.97.1 (8bab26f4f 2026-07-14)",
+  "cargo_zigbuild": "0.23.4",
+  "zig": "0.14.1",
+  "binaries": [
+    {
+      "path": "target/aarch64-unknown-linux-musl/release/procface",
+      "bytes": 1631136,
+      "sha256": "6c54378b66e3b82db79babc66c5f917bc3ed40557f8bc73fffedfeb707dac2ae"
+    },
+    {
+      "path": "target/armv7-unknown-linux-musleabihf/release/procface",
+      "bytes": 1675896,
+      "sha256": "c525779c83e36c495de659cf21759f8a3b2c505b832e13bd27c319835a589977"
+    },
+    {
+      "path": "target/riscv64gc-unknown-linux-musl/release/procface",
+      "bytes": 1716384,
+      "sha256": "19a7265fa7ad64260e002d3857f2723f1e3324cc1af9dd06ff2b4d292b1b20c9"
+    },
+    {
+      "path": "target/x86_64-unknown-linux-musl/release/procface",
+      "bytes": 1796936,
+      "sha256": "cf5bec22de3f149b1cc5f57045add997d7f32eff5f233cdf001599df009b08f9"
+    },
+    {
+      "path": "target/diagnostic/aarch64-unknown-linux-musl/release/procface",
+      "bytes": 2796232,
+      "sha256": "3330027d59708a3e7f721957a25a08a788fdc5f305ae0d619c50c4c729b0d651"
+    },
+    {
+      "path": "target/diagnostic/armv7-unknown-linux-musleabihf/release/procface",
+      "bytes": 2833976,
+      "sha256": "7c6bbb0b687877ee8cef02adb340d03056603cccdc1daf341cc4ec020f84deb2"
+    },
+    {
+      "path": "target/diagnostic/riscv64gc-unknown-linux-musl/release/procface",
+      "bytes": 2657504,
+      "sha256": "4a64f118ae2608ea4936f44b6d39cc47db1c10b09fa7dee4af2cbb6743d4f0dc"
+    },
+    {
+      "path": "target/diagnostic/x86_64-unknown-linux-musl/release/procface",
+      "bytes": 2989784,
+      "sha256": "3fa45546747f73185eacebc0ba1c949d5d9f5712c5f37cf7e1949860cf010741"
+    }
+  ]
+}
