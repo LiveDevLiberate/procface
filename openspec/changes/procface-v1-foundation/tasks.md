@@ -63,7 +63,7 @@
 - [x] 7.8 实现初次连接及重新建链的版本、构建 ID 和内嵌签名版本声明提交及拒绝原因展示，支持显式开发调试状态，避免将检查结果描述为运行代码完整性证明
 - [ ] 7.9 验证 GitHub Pages、本地文件和开发机静态托管入口，提供跨域及浏览器网络限制排查提示，离线建链不依赖 GitHub
 - [ ] 7.10 后续前端优化阶段实现“总览 / 进程 / Trace”三标签页、公共连接与历史工具栏及 ASCII 终端风格；验证分组图表、数值列稳定、刷新无空白帧、Trace 展开状态保留，以及切页不影响订阅、Trace 和历史保存。本轮只确认规范，不实施或发布布局改造
-- [ ] 7.11 后续协议优化阶段保持 API v1，实现 API 统一紧凑 JSON 和建链 schema 兼容校验，不保留旧预览线格式分支：稳定 metric/entity/group/status 目录、动态字典增量先于样本、complete/diagnostics 保留、current/series/stream/export 统一解码、前端展开显示和旧数据版本拒绝；API TSV、CLI 和前端下载保持可读格式，测量 API JSON 大小与重连补偿开销
+- [x] 7.11 后续协议优化阶段保持 API v1，实现 API 统一紧凑 JSON 和建链 schema 兼容校验，不保留旧预览线格式分支：稳定 metric/entity/group/status 目录、动态字典增量先于样本、complete/diagnostics 保留、current/series/stream/export 统一解码、前端展开显示和旧数据版本拒绝；API TSV、CLI 和前端下载保持可读格式，测量 API JSON 大小与重连补偿开销
 
 - [ ] 7.12 实现字典引用生命周期与安全回收，验证 session 内编号不复用、浏览器/持久化历史独立解码、未知编号有界恢复及失败缺口标记
 - [x] 7.13 固定 processes 数组字段位置并消除同批次重复进程样本，验证可读导出字段完整以及 Trace 文本、列表、结构化值和大整数精度往返
