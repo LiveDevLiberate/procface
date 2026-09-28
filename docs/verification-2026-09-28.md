@@ -109,3 +109,10 @@ dist/preview-index.json 记录八个归档及二进制 SHA-256。归档包含二
 - 新增 docs/release.md，说明同提交构建、公钥信任、目录组装、实际上传和线上一致性验证。未将自报 build_id 作为二进制来源证明，也未自动向远端发布。
 - 该工作完成本地发布工具准备，但不代表 8.4/8.6 已通过：目标仓库、长期发布密钥、实际 Release/Pages 和目标设备输入仍缺失，总进度保持 44/49。
 
+### 首次远端 CI 验收
+
+- 已创建私有仓库 https://github.com/LiveDevLiberate/procface 并推送 main。初始提交为 52137d9392d93a9ccb1fdd2d7691be59b3503204；上游参考源码、构建缓存、私钥、数据库和本地预览包均未纳入 Git。
+- GitHub Actions 运行 https://github.com/LiveDevLiberate/procface/actions/runs/36430597152 已完成且 success。10 个任务全部成功：前端浏览器回归、Rust 单元/Clippy/端到端验证，以及四架构普通版和诊断版交叉构建。
+- 已确认八个构建 artifacts 存在且未过期。远端构建通过不等于 ARM/RISC-V 设备实测通过，也不等于正式签名发布完成。
+- Pages API 当前返回 404，站点尚未配置。仓库依赖已解除；正式签名管理、仓库是否公开及设备环境仍待确定，进度保持 44/49。
+

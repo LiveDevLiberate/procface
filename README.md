@@ -81,7 +81,7 @@ python3 tools/release_frontend.py build --key /安全路径/release.key --versio
 python3 tools/release_frontend.py verify --html dist/procface-web.html --manifest dist/frontend-manifest.json --public-key 可信Base64公钥
 ~~~
 
-先生成内嵌签名声明，再对最终 HTML 生成外部 SHA-256 签名清单。发布私钥不进入产物。Pages 与 Release 应使用同一 HTML 字节；实际远端仓库、发布私钥与线上 Pages 尚未配置。
+先生成内嵌签名声明，再对最终 HTML 生成外部 SHA-256 签名清单。发布私钥不进入产物。Pages 与 Release 应使用同一 HTML 字节。项目仓库为 [LiveDevLiberate/procface](https://github.com/LiveDevLiberate/procface)，目前私有；正式发布密钥与线上 Pages 尚未配置。
 
 正式目录组装使用 `tools/package_release.py`，生成 Release 附件与字节一致的 Pages 目录；具体构建、上传与验收步骤见 [发布操作](docs/release.md)。该工具不自动上传或部署。
 
