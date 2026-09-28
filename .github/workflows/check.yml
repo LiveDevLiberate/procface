@@ -29,6 +29,11 @@ jobs:
       - run: node tools/test_frontend_layout.cjs
         env:
           PROCFACE_BROWSER_CHANNEL: chromium
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --locked
+      - run: python3 tools/test_browser_live.py --binary target/debug/procface
+        env:
+          PROCFACE_BROWSER_CHANNEL: chromium
   test:
     runs-on: ubuntu-24.04
     steps:

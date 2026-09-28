@@ -14,6 +14,7 @@ const assert=require('node:assert/strict');
   await page.waitForFunction(()=>document.querySelectorAll('#processes tr').length>0&&document.querySelectorAll('canvas').length>0);
   await page.waitForTimeout(1500);
   assert.equal(await page.locator('#debug').isVisible(),true);
+  await page.getByRole('tab',{name:'进程',exact:true}).click();
   const target=page.locator('#processes tr').filter({hasText:'procface'}).first();
   if(await target.count())await target.getByRole('button').click();else await page.locator('#processes button').first().click();
   await page.locator('#startTrace').click();
@@ -34,7 +35,7 @@ const assert=require('node:assert/strict');
   const downloadPromise=page.waitForEvent('download');await page.locator('#export').click();const download=await downloadPromise;
   const path=await download.path(),data=JSON.parse(fs.readFileSync(path,'utf8'));assert(data.batches.length>0);assert(!JSON.stringify(data).includes('test-token-01234567890123456789'));
   assert.equal(errors.length,0,errors.join('\n'));
-  fs.mkdirSync('docs',{recursive:true});await page.screenshot({path:'docs/procface-ui.png',fullPage:true});
+  if(process.env.PROCFACE_SCREENSHOT_DIR){fs.mkdirSync(process.env.PROCFACE_SCREENSHOT_DIR,{recursive:true});await page.screenshot({path:process.env.PROCFACE_SCREENSHOT_DIR+'/live.png',fullPage:true});}
   await page.locator('#disconnect').click();
   console.log('浏览器验证通过：连接、实时图表、进程列表、trace 重连接管、停止及历史导出；无页面异常。');
  }finally{await browser.close();}
