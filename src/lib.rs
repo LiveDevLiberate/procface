@@ -3,6 +3,7 @@ pub mod collector;
 pub mod compact;
 pub mod daemon;
 pub mod model;
+pub mod p1;
 pub mod parsers;
 pub mod persistence;
 pub mod store;

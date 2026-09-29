@@ -11,7 +11,17 @@ use std::{
 
 pub const DEFAULT_GROUPS: &[&str] = &["cpu", "memory", "load", "time", "disk", "network", "vm"];
 pub const GROUPS: &[&str] = &[
-    "cpu", "memory", "load", "time", "disk", "network", "vm", "process",
+    "cpu",
+    "memory",
+    "load",
+    "time",
+    "disk",
+    "network",
+    "vm",
+    "process",
+    "pressure",
+    "interrupts",
+    "softirq",
 ];
 pub const FILE_LIMIT: usize = 4 * 1024 * 1024;
 pub fn read_bounded(path: &Path, limit: usize) -> io::Result<String> {
@@ -98,7 +108,9 @@ pub fn capabilities(root: &Path) -> Vec<Capability> {
         ("network", "net/dev"),
         ("vm", "vmstat"),
         ("process", "self/stat"),
-        ("psi", "pressure/cpu"),
+        ("pressure", "pressure/cpu"),
+        ("pressure", "pressure/memory"),
+        ("pressure", "pressure/io"),
         ("protocols", "net/snmp"),
         ("sockets", "net/sockstat"),
         ("interrupts", "interrupts"),
@@ -130,6 +142,18 @@ pub fn capabilities(root: &Path) -> Vec<Capability> {
                             .iter()
                             .any(|p| p.status == Status::ParseError),
                         "network" => parsers::network(&text)
+                            .iter()
+                            .any(|p| p.status == Status::ParseError),
+                        "pressure" => {
+                            crate::p1::pressure(&text)
+                                .iter()
+                                .any(|p| p.status == Status::ParseError)
+                                || !text.lines().any(|l| l.starts_with("some "))
+                        }
+                        "interrupts" => crate::p1::interrupts(&text)
+                            .iter()
+                            .any(|p| p.status == Status::ParseError),
+                        "softirq" => crate::p1::softirqs(&text)
                             .iter()
                             .any(|p| p.status == Status::ParseError),
                         _ => false,
@@ -196,6 +220,9 @@ impl Collector {
     }
     pub fn uptime(&self) -> io::Result<f64> {
         parsers::uptime(&read_bounded(&self.root.join("uptime"), 1024)?).map_err(io::Error::other)
+    }
+    pub fn ticks_per_second(&self) -> u64 {
+        self.hz
     }
     fn batch(&mut self, group: &str, uptime: f64) -> SampleBatch {
         self.sequence += 1;
@@ -401,6 +428,37 @@ impl Collector {
                     }
                 },
                 "process" => {}
+                "pressure" => {
+                    for resource in ["cpu", "memory", "io"] {
+                        let path = format!("pressure/{resource}");
+                        let result = read_bounded(&self.root.join(&path), FILE_LIMIT);
+                        let mut parsed = crate::p1::pressure(result.as_deref().unwrap_or(""));
+                        for p in &mut parsed {
+                            p.entity = resource.into();
+                            if let Err(e) = &result {
+                                p.status = io_status(e);
+                            }
+                        }
+                        if parsed.iter().any(|p| p.status != Status::Ok) {
+                            batch.complete = false;
+                            batch.diagnostics.push(format!("{path}: 部分字段不可用"));
+                        }
+                        points.extend(parsed);
+                    }
+                }
+                "interrupts" | "softirq" => {
+                    let (file, parser): (&str, fn(&str) -> Vec<Point>) = if group == "interrupts" {
+                        ("interrupts", crate::p1::interrupts)
+                    } else {
+                        ("softirqs", crate::p1::softirqs)
+                    };
+                    let parsed = self.source(file, group, parser, &mut batch);
+                    if parsed.iter().any(|p| p.status != Status::Ok) {
+                        batch.complete = false;
+                        batch.diagnostics.push(format!("{file}: 部分字段不可用"));
+                    }
+                    points.extend(parsed);
+                }
                 _ => return Err(io::Error::other(format!("未知指标组: {group}"))),
             }
         }

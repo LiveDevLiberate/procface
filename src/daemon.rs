@@ -53,6 +53,13 @@ pub struct DaemonArgs {
     pub frontend_public_key: Vec<String>,
     #[arg(long,default_value="1",value_parser=crate::cli::parse_interval)]
     pub interval: f64,
+    /// 系统采样组（P1 显式加入 pressure,interrupts,softirq）
+    #[arg(
+        long,
+        value_delimiter = ',',
+        default_value = "cpu,memory,load,time,disk,network,vm"
+    )]
+    pub metrics: Vec<String>,
     #[arg(long,default_value="60",value_parser=clap::value_parser!(u64).range(1..=3600))]
     pub history_seconds: u64,
     #[arg(long,default_value="4194304",value_parser=clap::value_parser!(u64).range(65536..=268435456))]
@@ -875,6 +882,7 @@ fn router(app: Shared) -> Router {
         .with_state(app)
 }
 pub fn run(args: DaemonArgs) -> io::Result<()> {
+    let groups = crate::cli::selected_groups(&args.metrics)?;
     if args.diagnostic_sensitive && !cfg!(feature = "diagnostic") {
         return Err(io::Error::other("当前构建不含敏感诊断"));
     }
@@ -968,10 +976,6 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
         eprintln!("ProcFace daemon: {}", listener.local_addr()?);
         let sampling_app = app.clone();
         let sampler = thread::spawn(move || {
-            let groups = collector::DEFAULT_GROUPS
-                .iter()
-                .map(|s| s.to_string())
-                .collect::<Vec<_>>();
             while sampling_app.running.load(Ordering::Relaxed) {
                 let deadline = Instant::now() + Duration::from_secs_f64(args.interval);
                 match collector.system(&groups) {

@@ -28,7 +28,7 @@ const http=require('node:http');
     ['process.cpu_usage','process:42:123',5,'percent'],['process.rss_bytes','process:42:123',4096,'bytes'],
     ['trace.status','process:42:123',{name:'worker',threads:2},'text']]));
    render();window.originalCanvas=$('charts').querySelector('canvas');window.originalRow=$('processes').firstChild;
-   window.originalDetail=$('traceFields').firstChild;originalDetail.open=true;
+   window.originalDetail=$('traceFields').lastChild;originalDetail.open=true;
   });
   assert.deepEqual(await page.locator('#charts h2').allTextContents(),['CPU','负载','内存','磁盘','网络']);
   assert.equal(await page.locator('#tab-process').isVisible(),false);
@@ -40,7 +40,7 @@ const http=require('node:http');
   assert.equal(await page.locator('#pid').inputValue(),'42');
   assert.equal(await page.locator('#tab-trace').isVisible(),true);
   assert.equal(await page.locator('#traceCharts canvas').count(),2);
-  assert.match(await page.locator('#traceFields pre').innerText(),/"threads":2/);
+  assert.match(await page.locator('#traceFields pre').nth(2).textContent(),/"threads":2/);
   await page.evaluate(async()=>{
    await ingest(fixtureBatch(6,'system',[['cpu.usage','cpu',55,'percent']]));
    await ingest(fixtureBatch(7,'trace',[['trace.status','process:42:123',{threads:3},'text']]));

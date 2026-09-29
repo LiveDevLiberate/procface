@@ -31,6 +31,12 @@ def fixture(path, count=1):
     (path / "meminfo").write_text("MemTotal: 1024 kB\nMemAvailable: 512 kB\nMemFree: 128 kB\nBuffers: 8 kB\nCached: 32 kB\nSwapTotal: 0 kB\nSwapFree: 0 kB\n")
     (path / "vmstat").write_text("pgpgin 100\npgpgout 200\npswpin 0\npswpout 0\npgfault 400\npgmajfault 10\n")
     (path / "loadavg").write_text("0.10 0.20 0.30 1/20 123\n")
+    (path / "pressure").mkdir()
+    (path / "pressure/cpu").write_text("some avg10=1.00 avg60=2.00 avg300=3.00 total=100\nfull avg10=0.10 avg60=0.20 avg300=0.30 total=10\n")
+    (path / "pressure/memory").write_text("some avg10=4.00 avg60=5.00 avg300=6.00 total=200\n")
+    (path / "pressure/io").write_text("some avg10=7.00 avg60=8.00 avg300=9.00 total=300\n")
+    (path / "interrupts").write_text("           CPU0 CPU1\n  1:       10   20 timer\n ERR         2    3\n")
+    (path / "softirqs").write_text("                    CPU0       CPU1\nHI                    4          5\nTIMER                 6          7\n")
     (path / "diskstats").write_text("8 0 sda 1 0 4 6 2 0 8 9 0 10 11\n")
     (path / "net/dev").write_text("lo: 10 2 0 0 0 0 0 0 20 4 0 0 0 0 0 0\n")
     for pid in range(100, 100+count):
@@ -130,6 +136,10 @@ def main():
             if fmt=="json":assert len(json.loads(p.stdout))>0
             if fmt=="jsonl":assert all(json.loads(line)["schema_version"]==1 for line in p.stdout.splitlines())
             if fmt=="tsv":assert all(len(line.split("\t"))==11 for line in p.stdout.splitlines())
+        p1=json.loads(cli(binary,"sample","--proc-root",root,"--count",1,"--metrics","pressure,interrupts,softirq","--format","json").stdout)
+        assert any(s["metric"]=="pressure.some.avg10" and s["entity"]=="cpu" for s in p1)
+        assert any(s["metric"]=="interrupts.count" and s["entity"]=="interrupts:1:CPU0" for s in p1)
+        assert any(s["metric"]=="softirq.count" for s in p1), p1
         p=cli(binary,"sample","--proc-root",root,"--count",1,"--metrics","process","--format","json")
         assert sum(s["metric"]=="process.pid" for s in json.loads(p.stdout))==300
         assert cli(binary,"sample","--interval","0.5",ok=False).stdout==""

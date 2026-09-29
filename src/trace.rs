@@ -175,6 +175,15 @@ impl Tracer {
                             Collector::stamp(&mut b, rate);
                         }
                     }
+                    let structured = match file {
+                        "status" => parsers::trace_status(&text, &entity),
+                        "smaps_rollup" => parsers::trace_smaps_rollup(&text, &entity),
+                        "sched" => parsers::trace_sched(&text, &entity),
+                        _ => Vec::new(),
+                    };
+                    for point in structured {
+                        Collector::stamp(&mut b, point);
+                    }
                     Point::new(
                         format!("trace.{file}"),
                         &entity,
@@ -239,6 +248,29 @@ impl Tracer {
                     match read_bounded(&entry.path().join("stat"), 8192) {
                         Ok(text) => {
                             bytes += text.len();
+                            if let Ok(stat) = parsers::process_stat(&text) {
+                                Collector::stamp(
+                                    &mut b,
+                                    Point::new(
+                                        format!("trace.thread.{tid}.state"),
+                                        &entity,
+                                        stat.state,
+                                        "text",
+                                        Kind::Gauge,
+                                    ),
+                                );
+                                Collector::stamp(
+                                    &mut b,
+                                    Point::new(
+                                        format!("trace.thread.{tid}.cpu_seconds"),
+                                        &entity,
+                                        (stat.user_ticks + stat.system_ticks) as f64
+                                            / self.collector.ticks_per_second() as f64,
+                                        "seconds",
+                                        Kind::Gauge,
+                                    ),
+                                );
+                            }
                             Collector::stamp(
                                 &mut b,
                                 Point::new(

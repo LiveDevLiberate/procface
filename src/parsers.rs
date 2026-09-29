@@ -28,6 +28,195 @@ pub fn keyed(text: &str) -> BTreeMap<String, Result<u64, String>> {
         })
         .collect()
 }
+
+fn scaled_number(value: &str, unit: Option<&str>) -> Option<f64> {
+    let mut n = value.parse::<f64>().ok()?;
+    if !n.is_finite() {
+        return None;
+    }
+    if matches!(unit, Some("kB" | "KB")) {
+        n *= 1024.0;
+    }
+    Some(n)
+}
+
+/// 从 /proc/<pid>/status 提取稳定的数值字段；文本字段仍由 trace.status 保留。
+pub fn trace_status(text: &str, entity: &str) -> Vec<Point> {
+    let names = [
+        (
+            "VmPeak",
+            "process.status.vm_peak_bytes",
+            "bytes",
+            Kind::Gauge,
+        ),
+        (
+            "VmSize",
+            "process.status.vm_size_bytes",
+            "bytes",
+            Kind::Gauge,
+        ),
+        ("VmRSS", "process.status.vm_rss_bytes", "bytes", Kind::Gauge),
+        ("VmHWM", "process.status.vm_hwm_bytes", "bytes", Kind::Gauge),
+        (
+            "RssAnon",
+            "process.status.rss_anon_bytes",
+            "bytes",
+            Kind::Gauge,
+        ),
+        (
+            "RssFile",
+            "process.status.rss_file_bytes",
+            "bytes",
+            Kind::Gauge,
+        ),
+        (
+            "RssShmem",
+            "process.status.rss_shmem_bytes",
+            "bytes",
+            Kind::Gauge,
+        ),
+        (
+            "VmData",
+            "process.status.vm_data_bytes",
+            "bytes",
+            Kind::Gauge,
+        ),
+        ("VmStk", "process.status.vm_stk_bytes", "bytes", Kind::Gauge),
+        ("VmExe", "process.status.vm_exe_bytes", "bytes", Kind::Gauge),
+        ("VmLib", "process.status.vm_lib_bytes", "bytes", Kind::Gauge),
+        ("VmPTE", "process.status.vm_pte_bytes", "bytes", Kind::Gauge),
+        (
+            "VmSwap",
+            "process.status.vm_swap_bytes",
+            "bytes",
+            Kind::Gauge,
+        ),
+        ("Threads", "process.status.threads", "threads", Kind::Gauge),
+        (
+            "voluntary_ctxt_switches",
+            "process.status.voluntary_context_switches",
+            "events",
+            Kind::Counter,
+        ),
+        (
+            "nonvoluntary_ctxt_switches",
+            "process.status.nonvoluntary_context_switches",
+            "events",
+            Kind::Counter,
+        ),
+    ];
+    let mut out = Vec::with_capacity(names.len());
+    for (source, metric, unit, kind) in names {
+        let found = text.lines().find_map(|line| {
+            let (key, rest) = line.split_once(':')?;
+            if key.trim() != source {
+                return None;
+            }
+            let mut fields = rest.split_whitespace();
+            let value = fields.next()?;
+            Some(scaled_number(value, fields.next()))
+        });
+        out.push(match found {
+            Some(Some(v)) => Point::new(metric, entity, v, unit, kind),
+            Some(None) => Point::missing(metric, entity, unit, kind, Status::ParseError),
+            None => Point::missing(metric, entity, unit, kind, Status::Unsupported),
+        });
+    }
+    out
+}
+
+/// 从 /proc/<pid>/smaps_rollup 提取内存聚合值。
+pub fn trace_smaps_rollup(text: &str, entity: &str) -> Vec<Point> {
+    let names = [
+        ("Rss", "process.memory.rss_bytes"),
+        ("Pss", "process.memory.pss_bytes"),
+        ("Pss_Anon", "process.memory.pss_anon_bytes"),
+        ("Pss_File", "process.memory.pss_file_bytes"),
+        ("Pss_Shmem", "process.memory.pss_shmem_bytes"),
+        ("Shared_Clean", "process.memory.shared_clean_bytes"),
+        ("Shared_Dirty", "process.memory.shared_dirty_bytes"),
+        ("Private_Clean", "process.memory.private_clean_bytes"),
+        ("Private_Dirty", "process.memory.private_dirty_bytes"),
+        ("Referenced", "process.memory.referenced_bytes"),
+        ("Anonymous", "process.memory.anonymous_bytes"),
+        ("Swap", "process.memory.swap_bytes"),
+        ("SwapPss", "process.memory.swap_pss_bytes"),
+        ("Locked", "process.memory.locked_bytes"),
+    ];
+    names
+        .into_iter()
+        .map(|(source, metric)| {
+            let found = text.lines().find_map(|line| {
+                let (key, rest) = line.split_once(':')?;
+                if key.trim() != source {
+                    return None;
+                }
+                let mut fields = rest.split_whitespace();
+                Some(scaled_number(fields.next()?, fields.next()))
+            });
+            match found {
+                Some(Some(v)) => Point::new(metric, entity, v, "bytes", Kind::Gauge),
+                Some(None) => {
+                    Point::missing(metric, entity, "bytes", Kind::Gauge, Status::ParseError)
+                }
+                None => Point::missing(metric, entity, "bytes", Kind::Gauge, Status::Unsupported),
+            }
+        })
+        .collect()
+}
+
+/// 提取 /proc/<pid>/sched 中无需额外解释即可比较的调度字段。
+pub fn trace_sched(text: &str, entity: &str) -> Vec<Point> {
+    let names = [
+        (
+            "nr_switches",
+            "process.sched.switches",
+            "events",
+            Kind::Counter,
+        ),
+        (
+            "nr_voluntary_switches",
+            "process.sched.voluntary_switches",
+            "events",
+            Kind::Counter,
+        ),
+        (
+            "nr_involuntary_switches",
+            "process.sched.involuntary_switches",
+            "events",
+            Kind::Counter,
+        ),
+        (
+            "se.sum_exec_runtime",
+            "process.sched.sum_exec_runtime_seconds",
+            "seconds",
+            Kind::Gauge,
+        ),
+        (
+            "se.statistics.wait_sum",
+            "process.sched.wait_sum_seconds",
+            "seconds",
+            Kind::Gauge,
+        ),
+    ];
+    names
+        .into_iter()
+        .map(|(source, metric, unit, kind)| {
+            let found = text.lines().find_map(|line| {
+                let (key, rest) = line.split_once(':')?;
+                if key.trim() != source {
+                    return None;
+                }
+                Some(rest.trim().parse::<f64>().ok().filter(|v| v.is_finite()))
+            });
+            match found {
+                Some(Some(v)) => Point::new(metric, entity, v, unit, kind),
+                Some(None) => Point::missing(metric, entity, unit, kind, Status::ParseError),
+                None => Point::missing(metric, entity, unit, kind, Status::Unsupported),
+            }
+        })
+        .collect()
+}
 fn field(
     map: &BTreeMap<String, Result<u64, String>>,
     source: &str,
@@ -390,5 +579,47 @@ mod tests {
         assert_eq!(s.starttime_ticks, 123);
         assert_eq!(s.user_ticks, 10);
         assert_eq!(s.rss_pages, 7);
+        let status = trace_status("VmRSS:\t12 kB\nThreads:\t3\n", "process:1:2");
+        assert_eq!(
+            status
+                .iter()
+                .find(|p| p.metric == "process.status.vm_rss_bytes")
+                .unwrap()
+                .value
+                .as_f64(),
+            Some(12288.0)
+        );
+        assert_eq!(
+            status
+                .iter()
+                .find(|p| p.metric == "process.status.threads")
+                .unwrap()
+                .value
+                .as_f64(),
+            Some(3.0)
+        );
+        let sched = trace_sched(
+            "nr_switches : 4\nse.sum_exec_runtime : 1.5\n",
+            "process:1:2",
+        );
+        assert_eq!(
+            sched
+                .iter()
+                .find(|p| p.metric == "process.sched.switches")
+                .unwrap()
+                .value
+                .as_f64(),
+            Some(4.0)
+        );
+        let rollup = trace_smaps_rollup("Rss: 8 kB\nPss: 4 kB\n", "process:1:2");
+        assert_eq!(
+            rollup
+                .iter()
+                .find(|p| p.metric == "process.memory.pss_bytes")
+                .unwrap()
+                .value
+                .as_f64(),
+            Some(4096.0)
+        );
     }
 }

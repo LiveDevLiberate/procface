@@ -96,16 +96,23 @@ impl Catalog {
     fn resolve(&self, name: &str) -> Option<Metric> {
         self.0.get(name).cloned().or_else(|| {
             // 保留整个 u32 TID 编号区间，线程编号不占用静态指标目录。
-            let tid = name.strip_prefix("trace.thread.")?.strip_suffix(".stat")?;
+            let rest = name.strip_prefix("trace.thread.")?;
+            let (tid, suffix) = rest.split_once('.')?;
             let number = tid.parse::<u32>().ok()?;
             if number == 0 || number.to_string() != tid {
                 return None;
             }
+            let (unit, kind, offset) = match suffix {
+                "stat" => ("text", Kind::Gauge, 1u64 << 32),
+                "state" => ("text", Kind::Gauge, 1u64 << 34),
+                "cpu_seconds" => ("seconds", Kind::Gauge, 1u64 << 35),
+                _ => return None,
+            };
             Some(Metric(
-                (1u64 << 32) + u64::from(number),
+                offset + u64::from(number),
                 name.into(),
-                "text".into(),
-                Kind::Gauge,
+                unit.into(),
+                kind,
             ))
         })
     }
