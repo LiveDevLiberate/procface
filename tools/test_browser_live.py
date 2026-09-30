@@ -17,6 +17,8 @@ from test_e2e import Daemon
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--binary', required=True, type=Path)
+    parser.add_argument('--node', default='node', help='Node 路径；WSL 可指定 node.exe 复用 Windows 浏览器')
+    parser.add_argument('--file-url', help='浏览器能访问的 HTML file URL，默认使用本机路径')
     args = parser.parse_args()
     handler = functools.partial(SimpleHTTPRequestHandler, directory=str(ROOT / 'web'))
     with ThreadingHTTPServer(('127.0.0.1', 0), handler) as server:
@@ -26,10 +28,10 @@ def main():
         daemon = None
         try:
             daemon = Daemon(str(args.binary.resolve()), Path('/proc'), '--allow-file-origin', origin=origin)
-            for url in (origin + '/procface-web.html', (ROOT / 'web/procface-web.html').as_uri()):
+            for url in (origin + '/procface-web.html', args.file_url or (ROOT / 'web/procface-web.html').as_uri()):
                 env = {**os.environ, 'PROCFACE_WEB_URL': url, 'PROCFACE_DAEMON_URL': daemon.url}
                 env.setdefault('PROCFACE_BROWSER_CHANNEL', 'chromium')
-                subprocess.run(['node', 'tools/test_browser.cjs'], cwd=ROOT, env=env, check=True, timeout=90)
+                subprocess.run([args.node, 'tools/test_browser.cjs'], cwd=ROOT, env=env, check=True, timeout=90)
             print('真实 daemon 联调通过：HTTP 与 file 入口、鉴权、SSE、Trace 接管及导出。')
         finally:
             try:
