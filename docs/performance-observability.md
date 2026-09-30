@@ -18,12 +18,15 @@
 
 前端每次 health 请求结束后等待 5 秒再请求，断开时取消；未知统计显示不支持。最近耗时超过预算时显示 degraded，恢复后显示 ok；历史超预算计数不导致永久降级。
 
+`performance.windows` 按 system、process、trace 返回缓存首尾 uptime、`span_seconds` 和 `lost_through_sequence`。空窗口为 null，单批次跨度为 0；跨度不保证中间连续，丢失水位用于辅助判断，实际缺口仍以 series/gap 为准。前端显示窗口跨度、最近恢复结果及本地导出的批次数和字节数。
+
+`performance.slow_clients` 统计广播队列落后导致的流关闭；`write_timeouts` 统计传输层写超时导致的连接关闭，覆盖 SSE 和跟随导出。两个计数分别保留，不能相加当作去重后的客户端人数。正常广播关闭、主动断连和请求头超时不计作写超时。
+
 ## 尚未完成
 
-- 慢客户端计数目前只覆盖广播队列落后，尚未覆盖传输层写超时；不能作为全部慢连接关闭次数。
-- 窗口覆盖时间、最后恢复结果、前端导出统计和完整浏览器长时间运行验证。
+- 完整浏览器长时间运行验证。
 - 相同构建配置下的优化前后 CPU、RSS、传输量对照，以及 300/3000 进程场景。
 
 旧 `performance-pc-wsl.md` 中约 195/204 KiB/s 是紧凑协议改造前数据。当前 compact 的初步记录见 `compact-wire-wsl.md`；两者场景不同，不能据此宣称压缩率或当前性能。PC/WSL 结果均不替代嵌入式目标板验收。
 
-本轮已执行 Rust 单元测试、默认构建端到端测试、前端 layout/history 和默认构建 clippy。task 文件只勾选已有对应证据的子项，整体 change 尚未完成。
+已执行 Rust 单元测试、默认构建端到端测试、前端 layout/history、默认构建 clippy 和真实 TCP 背压测试；后者断言慢 SSE/导出释放后 write_timeouts 增加。task 文件只勾选已有对应证据的子项，整体 change 尚未完成。

@@ -188,6 +188,9 @@ def main():
                 stats=performance['sampling'][group]
                 assert stats['rounds']>0 and stats['max_sample_us']>=stats['last_sample_us']>=0
             assert performance['sampling']['trace']['last_sample_us'] is None
+            assert performance['windows']['system']['span_seconds']==0
+            assert performance['windows']['system']['from_uptime']==10
+            assert performance['windows']['trace']['span_seconds'] is None
             assert d.data('/api/v1/capabilities')['performance']['health'] is True
             for query in ('limit=0','limit=10001','from=-1','to=NaN','from=20&to=10','follow=2','group=unknown','metric='+','.join(['x']*33),'entity='+'x'*4097):
                 assert d.request('/api/v1/series?'+query)[0]==400,query

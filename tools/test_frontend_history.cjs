@@ -73,6 +73,7 @@ const html=path.resolve(__dirname,'../web/procface-web.html');
    // 短断链可由 series 补全，不得把已补齐区间继续标红。
    beginGap();window.fetch=async()=>new Response(JSON.stringify({history_gap:false,batches:[batch(6),batch(7)],has_more:false}));
    await recover(generation,7);const recovered=gaps.at(-1).recovered;
+   if(!$('recoveryState').textContent.includes('已补齐'))throw Error('恢复结果未显示');
    // 已更换连接的异步响应不能污染当前页面或存储。
    const old=generation;generation++;let aborted=false;
    try{await ingest(batch(8),old);}catch(e){aborted=e.name==='AbortError';}
@@ -125,6 +126,7 @@ const html=path.resolve(__dirname,'../web/procface-web.html');
    const original=window.fetch;
    window.fetch=async()=>new Response(JSON.stringify({history_gap:true,has_more:false,batches:[10,11].map(n=>({session_id:session,sequence:n,uptime_s:n,group:'system',samples:[],processes:[],complete:true}))}));
    await recover(generation);window.fetch=original;
+   if(!$('recoveryState').textContent.includes('incomplete'))throw Error('窗口缺失未显示');
    return {end:gaps.at(-1).to_uptime,crosses:gapCrosses(10.1,11)};
   });
   assert.deepEqual(prefixGap,{end:10,crosses:false});

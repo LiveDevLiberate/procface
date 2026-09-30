@@ -123,11 +123,26 @@ struct App {
     sampling: Mutex<[SamplingStats; 3]>,
     transport: Mutex<[TransportStats; 3]>,
     slow_clients: AtomicU64,
+    write_timeouts: AtomicU64,
     persistence: crate::persistence::Persistence,
     compact_catalog: Catalog,
     compact_entities: Mutex<Entities>,
 }
 type Shared = Arc<App>;
+fn is_io_timeout(mut error: &(dyn std::error::Error + 'static)) -> bool {
+    loop {
+        if error
+            .downcast_ref::<io::Error>()
+            .is_some_and(|e| e.kind() == io::ErrorKind::TimedOut)
+        {
+            return true;
+        }
+        match error.source() {
+            Some(source) => error = source,
+            None => return false,
+        }
+    }
+}
 #[derive(Default, Serialize)]
 struct TransportStats {
     batches: u64,
@@ -447,8 +462,17 @@ async fn health(State(app): State<Shared>) -> Json<Value> {
     let t = app.trace_store.lock().unwrap();
     let sampling = app.sampling.lock().unwrap();
     let transport = app.transport.lock().unwrap();
+    let window = |store: &Store, group: &str| {
+        let mut batches = store.history.iter().filter(|(b, _)| b.group == group);
+        let first = batches.next().map(|(b, _)| b);
+        let last = batches.next_back().map(|(b, _)| b).or(first);
+        json!({"from_uptime":first.map(|b|b.uptime_s),"to_uptime":last.map(|b|b.uptime_s),
+            "span_seconds":first.zip(last).map(|(a,b)|(b.uptime_s-a.uptime_s).max(0.0)),
+            "lost_through_sequence":store.lost_through})
+    };
+    let windows = json!({"system":window(&n,"system"),"process":window(&n,"process"),"trace":window(&t,"trace")});
     Json(
-        json!({"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed)}}),
+        json!({"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"windows":windows,"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed),"write_timeouts":app.write_timeouts.load(Ordering::Relaxed)}}),
     )
 }
 async fn current(State(app): State<Shared>, Query(q): Query<Filter>) -> Response {
@@ -573,7 +597,7 @@ async fn stream(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
             notice=rx.recv()=>{match notice{
                 Ok(0)=>{let value=app.trace.lock().unwrap().json();yield Ok(Event::default().event("trace").data(value.to_string()));},
                 Ok(sequence)=>{let Some(batch)=app.batch(sequence)else{yield Ok(Event::default().event("error").data("{\"error\":\"history_gap\"}"));break};if q.matches(&batch){let batch=q.filter(&batch);let data=app.compact(&batch).map(|v|json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":session,"batch":v.value()}).to_string());match data{Ok(data)=>{app.record_bytes(0, data.len());yield Ok(Event::default().event("sample").id(sequence.to_string()).data(data))},Err(_)=>break}}},
-                Err(_)=>{app.slow_clients.fetch_add(1, Ordering::Relaxed);yield Ok(Event::default().event("error").data("{\"error\":\"slow_client\"}"));break;}
+                Err(broadcast::error::RecvError::Closed)=>break,Err(broadcast::error::RecvError::Lagged(_))=>{app.slow_clients.fetch_add(1, Ordering::Relaxed);yield Ok(Event::default().event("error").data("{\"error\":\"slow_client\"}"));break;}
             }}
         }}
     };
@@ -643,7 +667,7 @@ async fn export(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
     let stream = async_stream::stream! {let _permit=permit;
         if format=="tsv"{yield Ok::<Bytes,io::Error>(Bytes::from(format!("{}\n",TSV_HEADER)));}
         for batch in initial{match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>{app.record_bytes(if format=="tsv" {2} else {1}, bytes.len());yield Ok(Bytes::from(bytes))},Err(e)=>{yield Err(e);return;}}}
-        if q.follow==Some(1){loop{match rx.recv().await{Ok(sequence)if sequence>last=>{let Some(batch)=app.batch(sequence)else{yield Err(io::Error::other("history_gap"));break};if q.matches(&batch){match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>{app.record_bytes(if format=="tsv" {2} else {1}, bytes.len());yield Ok(Bytes::from(bytes))},Err(e)=>{yield Err(e);break;}}}},Ok(_)=>{},Err(_)=>{app.slow_clients.fetch_add(1, Ordering::Relaxed);yield Err(io::Error::other("slow_client"));break;}}}}
+        if q.follow==Some(1){loop{match rx.recv().await{Ok(sequence)if sequence>last=>{let Some(batch)=app.batch(sequence)else{yield Err(io::Error::other("history_gap"));break};if q.matches(&batch){match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>{app.record_bytes(if format=="tsv" {2} else {1}, bytes.len());yield Ok(Bytes::from(bytes))},Err(e)=>{yield Err(e);break;}}}},Ok(_)=>{},Err(broadcast::error::RecvError::Closed)=>break,Err(broadcast::error::RecvError::Lagged(_))=>{app.slow_clients.fetch_add(1, Ordering::Relaxed);yield Err(io::Error::other("slow_client"));break;}}}}
     };
     (
         [(axum::http::header::CONTENT_TYPE, content_type)],
@@ -1020,6 +1044,7 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
         sampling: Mutex::new(Default::default()),
         transport: Mutex::new(Default::default()),
         slow_clients: AtomicU64::new(0),
+        write_timeouts: AtomicU64::new(0),
         persistence,
         compact_catalog: compact::Catalog::builtin()?,
         compact_entities: Mutex::new(compact::Entities::default()),
@@ -1105,6 +1130,7 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
                     socket.set_read_timeout(None);
                     socket.set_write_timeout(Some(Duration::from_secs(5)));
                     let service=hyper_util::service::TowerToHyperService::new(routes.clone());
+                    let connection_app=app.clone();
                     connections.spawn(async move {
                         let _permit=permit;
                         let io=hyper_util::rt::TokioIo::new(Box::pin(socket));
@@ -1115,7 +1141,11 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
                         http.max_buf_size(65536)
                             .header_read_timeout(Some(Duration::from_secs(30)))
                             .timer(hyper_util::rt::TokioTimer::new());
-                        let _=http.serve_connection(io,service).await;
+                        if let Err(error)=http.serve_connection(io,service).await {
+                            if is_io_timeout(&error) {
+                                connection_app.write_timeouts.fetch_add(1,Ordering::Relaxed);
+                            }
+                        }
                     });
                 }
             }

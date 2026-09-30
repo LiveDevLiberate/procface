@@ -79,6 +79,7 @@ def slow_clients(binary, root):
                 time.sleep(.3)
         assert saw_limit
         assert daemon.data("/api/v1/health")["sequence"]>before+4
+        assert daemon.data('/api/v1/health')['performance']['write_timeouts']>=1
         # 两个慢导出占满名额，随后必须自动释放，普通采样继续。
         clients.extend(unread_client(daemon, "/api/v1/export?format=jsonl&follow=1&group=trace") for _ in range(2))
         assert daemon.request("/api/v1/export?limit=1")[0]==429
@@ -88,6 +89,7 @@ def slow_clients(binary, root):
             assert time.monotonic()<deadline, "慢导出客户端未释放名额"
             time.sleep(.3)
         assert daemon.data("/api/v1/health")["sequence"]>before
+        assert daemon.data('/api/v1/health')['performance']['write_timeouts']>=2
     finally:
         for client in clients:client.close()
         daemon.close()

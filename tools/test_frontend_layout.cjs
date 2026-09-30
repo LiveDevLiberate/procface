@@ -55,6 +55,8 @@ const http=require('node:http');
   assert.match(await page.locator('#performanceState').textContent(),/degraded.*1500.0 ms/);
   await page.evaluate(()=>showPerformance({performance:{sampling:{system:{last_sample_us:1000,budget_us:1000000,over_budget_rounds:1}}}}));
   assert.match(await page.locator('#performanceState').textContent(),/性能：ok/);
+  await page.evaluate(()=>showPerformance({performance:{sampling:{},windows:{system:{span_seconds:12},trace:{span_seconds:null}}}}));
+  assert.match(await page.locator('#performanceState').textContent(),/窗口跨度 system 12.0s \/ trace —/);
   await page.evaluate(()=>showPerformance({}));
   assert.match(await page.locator('#performanceState').textContent(),/不支持/);
   assert.deepEqual(errors,[]);
