@@ -60,3 +60,19 @@ Grafana 等外部监控系统 SHOULD 通过 daemon 的 Prometheus `/metrics` 端
 单体 HTML MUST 在连接前读取 `/api/v1/capabilities`，比较自身支持的 API 主版本范围与 daemon 返回的 `api_compatibility.min_major`/`max_major`。仅当两个范围有交集且包含 daemon 当前 `api_version` 时才允许继续请求；版本不兼容时 MUST 禁止后续数据请求，并显示当前 daemon 版本、前端版本和推荐匹配版本；前端不得尝试猜测字段或降级解析未知主版本。
 
 前端 MUST 在单体 HTML 中声明 `supported_api_major_min` 和 `supported_api_major_max`。协商成功后，所有请求固定使用协商出的 `/api/v<major>/` 路径；协商失败时不得尝试其他主版本或猜测字段。
+
+### Requirement: 前端必须让 P1 指标和 Trace 可分析
+
+前端 MUST 展示 PSI、中断和 softirq 的可用时间序列，并在状态异常时显示 unsupported、permission_denied、stale、discontinuity 或 incomplete。Trace 页面 MUST 将结构化字段按内存、调度、I/O、文件描述符和线程分组，并与总览图表共享 uptime 时间轴。前端 MUST 保留现有历史 IndexedDB、断链 gap、不跨 gap 连线、导出和 Trace 重连停止行为。
+
+#### Scenario: 总览发现压力后进入 Trace
+- **WHEN** 用户在 PSI 或中断图表发现异常并从进程列表选择 PID
+- **THEN** 前端切换到 Trace，保留总览历史，并显示该 PID 在相同 uptime 区间的 CPU、内存和 I/O 数据
+
+#### Scenario: Trace 字段部分不可读
+- **WHEN** 某个结构化字段状态为 permission_denied 或 skipped_expensive
+- **THEN** 前端在对应分组显示状态原因，不把字段渲染为零，并继续显示其他分组
+
+#### Scenario: 时间线存在断链
+- **WHEN** SSE 序号缺失或 series 超出 daemon 窗口
+- **THEN** 系统和 Trace 图表保留 gap 标记，曲线不跨 gap 插值，历史导出包含断链记录
