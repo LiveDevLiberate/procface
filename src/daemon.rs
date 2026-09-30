@@ -20,7 +20,7 @@ use axum::{
 use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::Args;
 use ed25519_dalek::{Signature, VerifyingKey};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::{
     convert::Infallible,
@@ -120,11 +120,58 @@ struct App {
     running: AtomicBool,
     errors: AtomicU64,
     skipped: AtomicU64,
+    sampling: Mutex<[SamplingStats; 3]>,
+    transport: Mutex<[TransportStats; 3]>,
+    slow_clients: AtomicU64,
     persistence: crate::persistence::Persistence,
     compact_catalog: Catalog,
     compact_entities: Mutex<Entities>,
 }
 type Shared = Arc<App>;
+#[derive(Default, Serialize)]
+struct TransportStats {
+    batches: u64,
+    payload_bytes: u64,
+}
+// 固定三个采样组，每轮更新一次；锁内不读取 procfs、不序列化样本。
+#[derive(Default, Serialize)]
+struct SamplingStats {
+    rounds: u64,
+    last_sample_us: Option<u64>,
+    max_sample_us: u64,
+    budget_us: u64,
+    over_budget_rounds: u64,
+}
+impl SamplingStats {
+    fn record(&mut self, elapsed: Duration, budget: Duration) {
+        let us = elapsed.as_micros().min(u128::from(u64::MAX)) as u64;
+        self.rounds = self.rounds.saturating_add(1);
+        self.last_sample_us = Some(us);
+        self.max_sample_us = self.max_sample_us.max(us);
+        self.budget_us = budget.as_micros().min(u128::from(u64::MAX)) as u64;
+        if elapsed > budget {
+            self.over_budget_rounds = self.over_budget_rounds.saturating_add(1);
+        }
+    }
+}
+
+#[cfg(test)]
+mod performance_tests {
+    use super::*;
+    #[test]
+    fn sampling_budget_recovers_without_losing_maximum() {
+        let mut stats = SamplingStats::default();
+        assert_eq!(stats.last_sample_us, None);
+        stats.record(Duration::from_micros(1200), Duration::from_micros(1000));
+        stats.record(Duration::from_micros(200), Duration::from_micros(1000));
+        assert_eq!(stats.rounds, 2);
+        assert_eq!(stats.last_sample_us, Some(200));
+        assert_eq!(stats.max_sample_us, 1200);
+        assert_eq!(stats.over_budget_rounds, 1);
+        stats.record(Duration::from_micros(1000), Duration::from_micros(1000));
+        assert_eq!(stats.over_budget_rounds, 1);
+    }
+}
 fn error(code: StatusCode, reason: &str) -> Response {
     (code, Json(json!({"error":reason}))).into_response()
 }
@@ -196,6 +243,15 @@ async fn guard(State(app): State<Shared>, request: Request<Body>, next: Next) ->
     response
 }
 impl App {
+    fn record_sample(&self, group: usize, elapsed: Duration, budget: Duration) {
+        self.sampling.lock().unwrap()[group].record(elapsed, budget);
+    }
+    fn record_bytes(&self, channel: usize, bytes: usize) {
+        // 应用层样本 payload 交给响应流的数量，不代表客户端确认接收。
+        let mut stats = self.transport.lock().unwrap();
+        stats[channel].batches = stats[channel].batches.saturating_add(1);
+        stats[channel].payload_bytes = stats[channel].payload_bytes.saturating_add(bytes as u64);
+    }
     fn compact(&self, b: &SampleBatch) -> io::Result<EncodedBatch> {
         let mut entities = self.compact_entities.lock().unwrap();
         compact::encode(b, &self.compact_catalog, &mut entities)
@@ -380,6 +436,7 @@ async fn capabilities(State(app): State<Shared>) -> Json<Value> {
     value["wire_schema"] = json!(compact::WIRE_SCHEMA);
     value["schema_version"] = json!(1);
     value["sampling_interval_s"] = json!(app.args.interval);
+    value["performance"] = json!({"health":true,"transport_bytes":true,"bounded":true});
     value["dictionary"] = json!({"groups":compact::GROUPS,"statuses":compact::STATUSES,
         "process_fields":compact::PROCESS_FIELDS,"metrics":app.compact_catalog.dictionary()});
     value["recommended_frontend_version"] = json!(env!("CARGO_PKG_VERSION"));
@@ -388,8 +445,10 @@ async fn capabilities(State(app): State<Shared>) -> Json<Value> {
 async fn health(State(app): State<Shared>) -> Json<Value> {
     let n = app.normal.lock().unwrap();
     let t = app.trace_store.lock().unwrap();
+    let sampling = app.sampling.lock().unwrap();
+    let transport = app.transport.lock().unwrap();
     Json(
-        json!({"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap()}),
+        json!({"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed)}}),
     )
 }
 async fn current(State(app): State<Shared>, Query(q): Query<Filter>) -> Response {
@@ -513,8 +572,8 @@ async fn stream(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
             _=heartbeat.tick()=>{yield Ok(Event::default().event("heartbeat").data(json!({"sequence":app.sequence.load(Ordering::Relaxed)}).to_string()));},
             notice=rx.recv()=>{match notice{
                 Ok(0)=>{let value=app.trace.lock().unwrap().json();yield Ok(Event::default().event("trace").data(value.to_string()));},
-                Ok(sequence)=>{let Some(batch)=app.batch(sequence)else{yield Ok(Event::default().event("error").data("{\"error\":\"history_gap\"}"));break};if q.matches(&batch){let batch=q.filter(&batch);let data=app.compact(&batch).map(|v|json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":session,"batch":v.value()}).to_string());match data{Ok(data)=>yield Ok(Event::default().event("sample").id(sequence.to_string()).data(data)),Err(_)=>break}}},
-                Err(_)=>{yield Ok(Event::default().event("error").data("{\"error\":\"slow_client\"}"));break;}
+                Ok(sequence)=>{let Some(batch)=app.batch(sequence)else{yield Ok(Event::default().event("error").data("{\"error\":\"history_gap\"}"));break};if q.matches(&batch){let batch=q.filter(&batch);let data=app.compact(&batch).map(|v|json!({"wire_schema":compact::WIRE_SCHEMA,"schema_version":1,"session_id":session,"batch":v.value()}).to_string());match data{Ok(data)=>{app.record_bytes(0, data.len());yield Ok(Event::default().event("sample").id(sequence.to_string()).data(data))},Err(_)=>break}}},
+                Err(_)=>{app.slow_clients.fetch_add(1, Ordering::Relaxed);yield Ok(Event::default().event("error").data("{\"error\":\"slow_client\"}"));break;}
             }}
         }}
     };
@@ -583,8 +642,8 @@ async fn export(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
     };
     let stream = async_stream::stream! {let _permit=permit;
         if format=="tsv"{yield Ok::<Bytes,io::Error>(Bytes::from(format!("{}\n",TSV_HEADER)));}
-        for batch in initial{match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>yield Ok(Bytes::from(bytes)),Err(e)=>{yield Err(e);return;}}}
-        if q.follow==Some(1){loop{match rx.recv().await{Ok(sequence)if sequence>last=>{let Some(batch)=app.batch(sequence)else{yield Err(io::Error::other("history_gap"));break};if q.matches(&batch){match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>yield Ok(Bytes::from(bytes)),Err(e)=>{yield Err(e);break;}}}},Ok(_)=>{},Err(_)=>{yield Err(io::Error::other("slow_client"));break;}}}}
+        for batch in initial{match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>{app.record_bytes(if format=="tsv" {2} else {1}, bytes.len());yield Ok(Bytes::from(bytes))},Err(e)=>{yield Err(e);return;}}}
+        if q.follow==Some(1){loop{match rx.recv().await{Ok(sequence)if sequence>last=>{let Some(batch)=app.batch(sequence)else{yield Err(io::Error::other("history_gap"));break};if q.matches(&batch){match encode_export(&app,&q.filter(&batch),&format){Ok(bytes)=>{app.record_bytes(if format=="tsv" {2} else {1}, bytes.len());yield Ok(Bytes::from(bytes))},Err(e)=>{yield Err(e);break;}}}},Ok(_)=>{},Err(_)=>{app.slow_clients.fetch_add(1, Ordering::Relaxed);yield Err(io::Error::other("slow_client"));break;}}}}
     };
     (
         [(axum::http::header::CONTENT_TYPE, content_type)],
@@ -667,7 +726,14 @@ async fn trace_start(State(app): State<Shared>, Json(request): Json<StartTrace>)
                 break;
             }
             let deadline = Instant::now() + Duration::from_secs_f64(interval);
-            match tracer.sample() {
+            let sample_started = Instant::now();
+            let result = tracer.sample();
+            worker_app.record_sample(
+                2,
+                sample_started.elapsed(),
+                Duration::from_millis(tracer.options.budget_ms),
+            );
+            match result {
                 Ok(batch) => {
                     worker_app.trace.lock().unwrap().identity = tracer.identity.clone();
                     worker_app.publish(batch);
@@ -951,6 +1017,9 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
         running: AtomicBool::new(true),
         errors: AtomicU64::new(0),
         skipped: AtomicU64::new(0),
+        sampling: Mutex::new(Default::default()),
+        transport: Mutex::new(Default::default()),
+        slow_clients: AtomicU64::new(0),
         persistence,
         compact_catalog: compact::Catalog::builtin()?,
         compact_entities: Mutex::new(compact::Entities::default()),
@@ -978,14 +1047,20 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
         let sampler = thread::spawn(move || {
             while sampling_app.running.load(Ordering::Relaxed) {
                 let deadline = Instant::now() + Duration::from_secs_f64(args.interval);
-                match collector.system(&groups) {
+                let sample_started = Instant::now();
+                let result = collector.system(&groups);
+                sampling_app.record_sample(0, sample_started.elapsed(), Duration::from_secs_f64(args.interval));
+                match result {
                     Ok(b) => sampling_app.publish(b),
                     Err(e) => {
                         eprintln!("系统采样失败: {e}");
                         sampling_app.errors.fetch_add(1, Ordering::Relaxed);
                     }
                 }
-                match collector.processes() {
+                let sample_started = Instant::now();
+                let result = collector.processes();
+                sampling_app.record_sample(1, sample_started.elapsed(), Duration::from_millis(args.process_budget_ms));
+                match result {
                     Ok(b) => sampling_app.publish(b),
                     Err(e) => {
                         eprintln!("进程采样失败: {e}");

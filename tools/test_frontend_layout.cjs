@@ -51,6 +51,12 @@ const http=require('node:http');
    detail:originalDetail===$('traceFields').firstChild,open:originalDetail.open,
    right:getComputedStyle(originalRow.cells[3]).textAlign,radius:getComputedStyle($('connect')).borderRadius}));
   assert.deepEqual(state,{count:7,trace:'running',canvas:true,row:true,detail:true,open:true,right:'right',radius:'0px'});
+  await page.evaluate(()=>showPerformance({memory_bytes:4096,trace_memory_bytes:1024,performance:{sampling:{system:{last_sample_us:1500000,budget_us:1000000},trace:{last_sample_us:null,budget_us:0}}}}));
+  assert.match(await page.locator('#performanceState').textContent(),/degraded.*1500.0 ms/);
+  await page.evaluate(()=>showPerformance({performance:{sampling:{system:{last_sample_us:1000,budget_us:1000000,over_budget_rounds:1}}}}));
+  assert.match(await page.locator('#performanceState').textContent(),/性能：ok/);
+  await page.evaluate(()=>showPerformance({}));
+  assert.match(await page.locator('#performanceState').textContent(),/不支持/);
   assert.deepEqual(errors,[]);
   if(process.env.PROCFACE_SCREENSHOT_DIR){fs.mkdirSync(process.env.PROCFACE_SCREENSHOT_DIR,{recursive:true});for(const name of ['overview','process','trace']){await page.locator('#label-'+name).click();await page.screenshot({path:process.env.PROCFACE_SCREENSHOT_DIR+'/'+name+'.png',fullPage:true});}}
   console.log('三页布局验证通过：分组、键盘切页、Trace 曲线、节点稳定、历史持续保存、数值列对齐。');

@@ -182,6 +182,13 @@ def main():
             h["api_compatibility"]={"min":2,"max":2};assert d.request("/api/v1/frontend/handshake",method="POST",data=h)[0]==403
             time.sleep(1.2)
             assert len(d.data("/api/v1/processes")["processes"])==300
+            performance=d.data("/api/v1/health")["performance"]
+            assert set(performance['sampling']) == {'system','process','trace'}
+            for group in ('system','process'):
+                stats=performance['sampling'][group]
+                assert stats['rounds']>0 and stats['max_sample_us']>=stats['last_sample_us']>=0
+            assert performance['sampling']['trace']['last_sample_us'] is None
+            assert d.data('/api/v1/capabilities')['performance']['health'] is True
             for query in ('limit=0','limit=10001','from=-1','to=NaN','from=20&to=10','follow=2','group=unknown','metric='+','.join(['x']*33),'entity='+'x'*4097):
                 assert d.request('/api/v1/series?'+query)[0]==400,query
             filtered=d.data('/api/v1/series?group=system&metric=memory.total_bytes&entity=system&from=10&to=10&limit=1')
@@ -208,11 +215,20 @@ def main():
                 time.sleep(.02)
             assert types["procface_network_rx_bytes_per_second"]=="gauge"
             assert values["procface_network_rx_bytes_per_second"][0].endswith(" 10.0")
-            assert d.request("/api/v1/export?format=tsv")[2].startswith(b"schema_version\t")
+            for fmt in ('tsv','jsonl'):
+                before_stats=d.data('/api/v1/health')['performance']['transport'][fmt]
+                response=d.request('/api/v1/export?format='+fmt)[2]
+                header=len(response.split(b'\n',1)[0])+1 if fmt=='tsv' else 0
+                if fmt=='tsv': assert response.startswith(b'schema_version\t')
+                after_stats=d.data('/api/v1/health')['performance']['transport'][fmt]
+                assert after_stats['batches']>before_stats['batches']
+                assert after_stats['payload_bytes']-before_stats['payload_bytes']==len(response)-header
+            assert d.data('/api/v1/health')['performance']['transport']['sse']['batches']==0
             before=d.data("/api/v1/health")["sequence"]
             assert d.request("/api/v1/trace",method="POST",data={"pid":100})[0]==202
             assert d.request("/api/v1/trace",method="POST",data={"pid":101})[0]==409
             time.sleep(.3);assert d.data("/api/v1/trace")["state"]=="running"
+            assert d.data('/api/v1/health')['performance']['sampling']['trace']['rounds']>0
             assert d.data("/api/v1/processes/100/current")["group"]=="trace"
             assert d.request("/api/v1/trace",method="DELETE")[0]==200
             for _ in range(100):
@@ -238,6 +254,8 @@ def main():
             time.sleep(1.1)
             assert d.data('/api/v1/health')['sequence']>before
             assert d.data('/api/v1/health')['skipped_rounds']>0
+            stats=d.data('/api/v1/health')['performance']['sampling']['process']
+            assert stats['budget_us']==1000 and stats['over_budget_rounds']>0
             assert any(b['group']=='system' and b['complete'] for b in d.data('/api/v1/current')['batches'])
         finally:d.close()
         (root/"100/stat").write_text(stat(100).replace("worker ) name", 'quote"slash\\'))

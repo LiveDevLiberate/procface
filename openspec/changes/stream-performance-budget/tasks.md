@@ -2,9 +2,9 @@
 
 ## 1. Daemon metrics
 
-- [ ] 1.1 记录系统、进程和 Trace 采样耗时，并在 health 返回最近值、最大值和超预算计数；用模拟 procfs 测试超时轮次继续运行。
+- [x] 1.1 记录系统、进程和 Trace 采样耗时，并在 health 返回最近值、最大值和超预算计数；用模拟 procfs 测试超时轮次继续运行。
 - [ ] 1.2 统计 SSE、JSONL、TSV 编码后的批次数和字节数，以及慢客户端关闭次数；用 stream 测试验证计数有界且不改变样本 schema。
-- [ ] 1.3 将性能统计加入 capabilities 的可选特性说明，并验证旧字段和 v1 路径保持兼容。
+- [x] 1.3 将性能统计加入 capabilities 的可选特性说明，并验证旧字段和 v1 路径保持兼容。
 
 ## 2. Frontend and tooling
 
