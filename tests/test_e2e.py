@@ -244,6 +244,18 @@ def main():
             assert d.data("/api/v1/health")["sequence"]>before
             assert d.data("/api/v1/series")["batches"]
         finally:d.close()
+        d=Daemon(binary,root,"--memory-bytes",65536)
+        try:
+            deadline=time.monotonic()+3
+            while True:
+                health=d.data('/api/v1/health')
+                if health['history_not_saved']:
+                    break
+                assert time.monotonic()<deadline
+                time.sleep(.02)
+            assert health['live_oversized_bytes']>0
+            assert len(d.data('/api/v1/processes')['processes'])==300
+        finally:d.close()
         d=Daemon(binary,root,'--process-budget-ms',1)
         try:
             deadline=time.monotonic()+3
