@@ -58,6 +58,12 @@ pub struct ProcessInfo {
     pub threads: u64,
     pub cpu_seconds: f64,
     pub cpu_percent: Option<f64>,
+    pub virtual_bytes: u64,
+    #[serde(default = "stale_status")]
+    pub cpu_status: Status,
+}
+fn stale_status() -> Status {
+    Status::Stale
 }
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SampleBatch {
@@ -74,6 +80,90 @@ pub struct SampleBatch {
     pub processes: Vec<ProcessInfo>,
     pub complete: bool,
     pub diagnostics: Vec<String>,
+}
+impl SampleBatch {
+    /// Daemon 历史只保存进程行；输出可读格式时恢复原有样本。
+    pub fn expand_process_samples(&mut self) {
+        if self.group != "process" || self.processes.is_empty() || !self.samples.is_empty() {
+            return;
+        }
+        for p in &self.processes {
+            let entity = p.identity.entity();
+            let fields = [
+                (
+                    "process.pid",
+                    Value::from(p.identity.pid),
+                    "id",
+                    Kind::Gauge,
+                    Status::Ok,
+                ),
+                (
+                    "process.name",
+                    Value::from(p.name.clone()),
+                    "text",
+                    Kind::Gauge,
+                    Status::Ok,
+                ),
+                (
+                    "process.state",
+                    Value::from(p.state.clone()),
+                    "text",
+                    Kind::Gauge,
+                    Status::Ok,
+                ),
+                (
+                    "process.cpu_seconds",
+                    Value::from(p.cpu_seconds),
+                    "seconds",
+                    Kind::Counter,
+                    Status::Ok,
+                ),
+                (
+                    "process.rss_bytes",
+                    Value::from(p.rss_bytes),
+                    "bytes",
+                    Kind::Gauge,
+                    Status::Ok,
+                ),
+                (
+                    "process.virtual_bytes",
+                    Value::from(p.virtual_bytes),
+                    "bytes",
+                    Kind::Gauge,
+                    Status::Ok,
+                ),
+                (
+                    "process.threads",
+                    Value::from(p.threads),
+                    "threads",
+                    Kind::Gauge,
+                    Status::Ok,
+                ),
+                (
+                    "process.cpu_usage",
+                    p.cpu_percent.map(Value::from).unwrap_or(Value::Null),
+                    "percent",
+                    Kind::Gauge,
+                    p.cpu_status,
+                ),
+            ];
+            for (metric, value, unit, kind, status) in fields {
+                self.samples.push(Sample {
+                    schema_version: self.schema_version,
+                    session_id: self.session_id.clone(),
+                    sequence: self.sequence,
+                    uptime_s: self.uptime_s,
+                    timestamp_unix: self.timestamp_unix,
+                    metric: metric.into(),
+                    entity: entity.clone(),
+                    value,
+                    unit: unit.into(),
+                    kind,
+                    status,
+                });
+            }
+        }
+    }
 }
 #[derive(Clone, Debug)]
 pub struct Point {

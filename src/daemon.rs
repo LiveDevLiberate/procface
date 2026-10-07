@@ -112,6 +112,7 @@ struct App {
     // 序号分配、缓存提交和通知顺序必须一致；锁内不做序列化或网络 I/O。
     publish_order: Mutex<()>,
     normal: Mutex<Store>,
+    latest_oversized: Mutex<[Option<Arc<SampleBatch>>; 2]>,
     trace_store: Mutex<Store>,
     trace: Mutex<TraceControl>,
     notify: broadcast::Sender<u64>,
@@ -269,7 +270,13 @@ impl App {
     }
     fn compact(&self, b: &SampleBatch) -> io::Result<EncodedBatch> {
         let mut entities = self.compact_entities.lock().unwrap();
-        compact::encode(b, &self.compact_catalog, &mut entities)
+        if b.group == "process" && b.samples.is_empty() {
+            let mut expanded = b.clone();
+            expanded.expand_process_samples();
+            compact::encode(&expanded, &self.compact_catalog, &mut entities)
+        } else {
+            compact::encode(b, &self.compact_catalog, &mut entities)
+        }
     }
     fn publish(&self, mut b: SampleBatch) {
         for message in &b.diagnostics {
@@ -287,11 +294,27 @@ impl App {
             sample.session_id = b.session_id.clone();
             sample.sequence = b.sequence;
         }
-        match self.compact(&b) {
-            Ok(encoded) => b.wire = Some(Arc::new(encoded)),
-            Err(error) => {
-                eprintln!("紧凑编码失败: {error}");
-                self.errors.fetch_add(1, Ordering::Relaxed);
+        let is_process = b.group == "process";
+        let compact_process_rows = is_process
+            && b.samples.iter().all(|s| {
+                compact::PROCESS_METRICS.contains(&s.metric.as_str())
+                    && (s.status == Status::Ok || s.metric == "process.cpu_usage")
+            });
+        if is_process {
+            if self.args.sqlite_path.is_some() {
+                self.persistence.offer(Arc::new(b.clone()));
+            }
+            if compact_process_rows {
+                b.samples.clear();
+                b.samples.shrink_to_fit();
+            }
+        } else {
+            match self.compact(&b) {
+                Ok(encoded) => b.wire = Some(Arc::new(encoded)),
+                Err(error) => {
+                    eprintln!("紧凑编码失败: {error}");
+                    self.errors.fetch_add(1, Ordering::Relaxed);
+                }
             }
         }
         let sequence = b.sequence;
@@ -299,15 +322,20 @@ impl App {
         let b = Arc::new(b);
         self.normal.lock().unwrap().expire(b.uptime_s);
         self.trace_store.lock().unwrap().expire(b.uptime_s);
-        self.persistence.offer(b.clone());
+        if !is_process {
+            self.persistence.offer(b.clone());
+        }
         let stored = if is_trace {
-            self.trace_store.lock().unwrap().push(b)
+            self.trace_store.lock().unwrap().push(b.clone())
         } else {
-            self.normal.lock().unwrap().push(b)
+            self.normal.lock().unwrap().push(b.clone())
         };
         if stored {
+            self.latest_oversized.lock().unwrap()[is_trace as usize] = None;
             let _ = self.notify.send(sequence);
         } else {
+            self.latest_oversized.lock().unwrap()[is_trace as usize] = Some(b);
+            let _ = self.notify.send(sequence);
             self.skipped.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -317,10 +345,23 @@ impl App {
             .unwrap()
             .get(sequence)
             .or_else(|| self.trace_store.lock().unwrap().get(sequence))
+            .or_else(|| {
+                self.latest_oversized
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .flatten()
+                    .find(|b| b.sequence == sequence)
+                    .cloned()
+            })
     }
     fn current(&self) -> Vec<Arc<SampleBatch>> {
         let mut all = self.normal.lock().unwrap().latest();
         all.extend(self.trace_store.lock().unwrap().latest());
+        for batch in self.latest_oversized.lock().unwrap().iter().flatten() {
+            all.retain(|old| old.group != batch.group || old.sequence > batch.sequence);
+            all.push(batch.clone());
+        }
         all.sort_by_key(|b| b.sequence);
         all
     }
@@ -423,6 +464,7 @@ impl Filter {
     fn filter(&self, b: &SampleBatch) -> SampleBatch {
         let mut b = b.clone();
         b.wire = None;
+        b.expand_process_samples();
         b.samples.retain(|s| {
             self.metric
                 .as_ref()
@@ -460,6 +502,14 @@ async fn capabilities(State(app): State<Shared>) -> Json<Value> {
 async fn health(State(app): State<Shared>) -> Json<Value> {
     let n = app.normal.lock().unwrap();
     let t = app.trace_store.lock().unwrap();
+    let live_oversized_bytes: usize = app
+        .latest_oversized
+        .lock()
+        .unwrap()
+        .iter()
+        .flatten()
+        .map(|b| Store::estimate(b))
+        .sum();
     let sampling = app.sampling.lock().unwrap();
     let transport = app.transport.lock().unwrap();
     let window = |store: &Store, group: &str| {
@@ -472,7 +522,7 @@ async fn health(State(app): State<Shared>) -> Json<Value> {
     };
     let windows = json!({"system":window(&n,"system"),"process":window(&n,"process"),"trace":window(&t,"trace")});
     Json(
-        json!({"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"windows":windows,"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed),"write_timeouts":app.write_timeouts.load(Ordering::Relaxed)}}),
+        json!({"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"live_oversized_bytes":live_oversized_bytes,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"windows":windows,"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed),"write_timeouts":app.write_timeouts.load(Ordering::Relaxed)}}),
     )
 }
 async fn current(State(app): State<Shared>, Query(q): Query<Filter>) -> Response {
@@ -676,13 +726,7 @@ async fn export(State(app): State<Shared>, Query(q): Query<Filter>) -> Response 
         .into_response()
 }
 async fn processes(State(app): State<Shared>) -> Response {
-    let batch = app
-        .normal
-        .lock()
-        .unwrap()
-        .latest()
-        .into_iter()
-        .find(|b| b.group == "process");
+    let batch = app.current().into_iter().find(|b| b.group == "process");
     match batch {
         Some(batch) => match app.compact(&batch) {
             Ok(wire) => Json(wire.envelope(&app.session)).into_response(),
@@ -868,10 +912,15 @@ async fn process_stream(
     stream(State(app), Query(q)).await
 }
 async fn metrics(State(app): State<Shared>) -> Response {
-    let batches = app.normal.lock().unwrap().latest();
+    let batches = app.current();
     let mut out = String::new();
     let mut names = std::collections::HashSet::new();
     for b in batches {
+        if b.group == "trace" {
+            continue;
+        }
+        let mut b = (*b).clone();
+        b.expand_process_samples();
         for s in &b.samples {
             if s.status != Status::Ok
                 || (!app.args.prometheus_process && s.entity.starts_with("process:"))
@@ -1024,6 +1073,7 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
             args.memory_bytes as usize,
             args.history_seconds as f64,
         )),
+        latest_oversized: Mutex::new([None, None]),
         trace_store: Mutex::new(Store::new(
             args.trace_memory_bytes as usize,
             args.history_seconds as f64,

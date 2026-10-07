@@ -1,0 +1,515 @@
+{
+  "environment": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.42",
+  "machine": "x86_64",
+  "binaries": {
+    "current": {
+      "sha256": "6ab34bf62c5ace62599663c38fb7a9651b8210c06a480f8a28898f6625f9f44d",
+      "bytes": 54334352
+    }
+  },
+  "warmup_seconds": 1,
+  "measurement_seconds": 2,
+  "slow_min_seconds": 15,
+  "sampling_seconds": 1,
+  "fixture": true,
+  "results": [
+    {
+      "build": "current",
+      "client": "none",
+      "process_count": 1,
+      "trace": false,
+      "duration_seconds": 2.0031270279996534,
+      "rss_bytes": 8757248,
+      "peak_bytes": 8757248,
+      "cpu_ticks": 1,
+      "threads": 3,
+      "cpu_percent_one_core": 0.0,
+      "rss_sampled_peak_bytes": 8687616,
+      "received_bytes": 0,
+      "received_bytes_per_second": 0.0,
+      "stream_errors": [],
+      "performance": {
+        "sampling": {
+          "process": {
+            "budget_us": 500000,
+            "last_sample_us": 66,
+            "max_sample_us": 321,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "system": {
+            "budget_us": 1000000,
+            "last_sample_us": 674,
+            "max_sample_us": 2895,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "trace": {
+            "budget_us": 0,
+            "last_sample_us": null,
+            "max_sample_us": 0,
+            "over_budget_rounds": 0,
+            "rounds": 0
+          }
+        },
+        "slow_clients": 0,
+        "transport": {
+          "jsonl": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "sse": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "tsv": {
+            "batches": 0,
+            "payload_bytes": 0
+          }
+        },
+        "windows": {
+          "process": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 0,
+            "span_seconds": 2.80448946100023,
+            "to_uptime": 12.80448946100023
+          },
+          "system": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 0,
+            "span_seconds": 2.80448946100023,
+            "to_uptime": 12.80448946100023
+          },
+          "trace": {
+            "from_uptime": null,
+            "lost_through_sequence": 0,
+            "span_seconds": null,
+            "to_uptime": null
+          }
+        },
+        "write_timeouts": 0
+      },
+      "history_bytes": 238872,
+      "trace_history_bytes": 0,
+      "memory_budget_bytes": 524288,
+      "trace_memory_budget_bytes": 1048576,
+      "dropped_batches": 0,
+      "skipped_rounds": 0
+    },
+    {
+      "build": "current",
+      "client": "none",
+      "process_count": 300,
+      "trace": false,
+      "duration_seconds": 2.0031702689993836,
+      "rss_bytes": 10432512,
+      "peak_bytes": 10432512,
+      "cpu_ticks": 3,
+      "threads": 3,
+      "cpu_percent_one_core": 0.4992086870875517,
+      "rss_sampled_peak_bytes": 10211328,
+      "received_bytes": 0,
+      "received_bytes_per_second": 0.0,
+      "stream_errors": [],
+      "performance": {
+        "sampling": {
+          "process": {
+            "budget_us": 500000,
+            "last_sample_us": 6872,
+            "max_sample_us": 7290,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "system": {
+            "budget_us": 1000000,
+            "last_sample_us": 505,
+            "max_sample_us": 2782,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "trace": {
+            "budget_us": 0,
+            "last_sample_us": null,
+            "max_sample_us": 0,
+            "over_budget_rounds": 0,
+            "rounds": 0
+          }
+        },
+        "slow_clients": 0,
+        "transport": {
+          "jsonl": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "sse": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "tsv": {
+            "batches": 0,
+            "payload_bytes": 0
+          }
+        },
+        "windows": {
+          "process": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 0,
+            "span_seconds": 2.804540645999623,
+            "to_uptime": 12.804540645999623
+          },
+          "system": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 0,
+            "span_seconds": 2.804540645999623,
+            "to_uptime": 12.804540645999623
+          },
+          "trace": {
+            "from_uptime": null,
+            "lost_through_sequence": 0,
+            "span_seconds": null,
+            "to_uptime": null
+          }
+        },
+        "write_timeouts": 0
+      },
+      "history_bytes": 499456,
+      "trace_history_bytes": 0,
+      "memory_budget_bytes": 524288,
+      "trace_memory_budget_bytes": 1048576,
+      "dropped_batches": 0,
+      "skipped_rounds": 0
+    },
+    {
+      "build": "current",
+      "client": "none",
+      "process_count": 3000,
+      "trace": false,
+      "duration_seconds": 2.003166009999404,
+      "rss_bytes": 21254144,
+      "peak_bytes": 21254144,
+      "cpu_ticks": 24,
+      "threads": 3,
+      "cpu_percent_one_core": 7.488146227084026,
+      "rss_sampled_peak_bytes": 21254144,
+      "received_bytes": 0,
+      "received_bytes_per_second": 0.0,
+      "stream_errors": [],
+      "performance": {
+        "sampling": {
+          "process": {
+            "budget_us": 500000,
+            "last_sample_us": 64091,
+            "max_sample_us": 74914,
+            "over_budget_rounds": 0,
+            "rounds": 3
+          },
+          "system": {
+            "budget_us": 1000000,
+            "last_sample_us": 939,
+            "max_sample_us": 2506,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "trace": {
+            "budget_us": 0,
+            "last_sample_us": null,
+            "max_sample_us": 0,
+            "over_budget_rounds": 0,
+            "rounds": 0
+          }
+        },
+        "slow_clients": 0,
+        "transport": {
+          "jsonl": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "sse": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "tsv": {
+            "batches": 0,
+            "payload_bytes": 0
+          }
+        },
+        "windows": {
+          "process": {
+            "from_uptime": null,
+            "lost_through_sequence": 6,
+            "span_seconds": null,
+            "to_uptime": null
+          },
+          "system": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 6,
+            "span_seconds": 2.804446731999633,
+            "to_uptime": 12.804446731999633
+          },
+          "trace": {
+            "from_uptime": null,
+            "lost_through_sequence": 0,
+            "span_seconds": null,
+            "to_uptime": null
+          }
+        },
+        "write_timeouts": 0
+      },
+      "history_bytes": 235940,
+      "trace_history_bytes": 0,
+      "memory_budget_bytes": 524288,
+      "trace_memory_budget_bytes": 1048576,
+      "dropped_batches": 3,
+      "skipped_rounds": 3
+    },
+    {
+      "build": "current",
+      "client": "sse",
+      "process_count": 300,
+      "trace": false,
+      "duration_seconds": 2.003754685999411,
+      "rss_bytes": 12128256,
+      "peak_bytes": 12128256,
+      "cpu_ticks": 5,
+      "threads": 3,
+      "cpu_percent_one_core": 1.4971892622193383,
+      "rss_sampled_peak_bytes": 12128256,
+      "received_bytes": 72931,
+      "received_bytes_per_second": 36397.17002763952,
+      "stream_errors": [],
+      "performance": {
+        "sampling": {
+          "process": {
+            "budget_us": 500000,
+            "last_sample_us": 6528,
+            "max_sample_us": 7467,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "system": {
+            "budget_us": 1000000,
+            "last_sample_us": 424,
+            "max_sample_us": 2523,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "trace": {
+            "budget_us": 0,
+            "last_sample_us": null,
+            "max_sample_us": 0,
+            "over_budget_rounds": 0,
+            "rounds": 0
+          }
+        },
+        "slow_clients": 0,
+        "transport": {
+          "jsonl": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "sse": {
+            "batches": 6,
+            "payload_bytes": 108936
+          },
+          "tsv": {
+            "batches": 0,
+            "payload_bytes": 0
+          }
+        },
+        "windows": {
+          "process": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 0,
+            "span_seconds": 2.805432913999539,
+            "to_uptime": 12.805432913999539
+          },
+          "system": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 0,
+            "span_seconds": 2.805432913999539,
+            "to_uptime": 12.805432913999539
+          },
+          "trace": {
+            "from_uptime": null,
+            "lost_through_sequence": 0,
+            "span_seconds": null,
+            "to_uptime": null
+          }
+        },
+        "write_timeouts": 0
+      },
+      "history_bytes": 499456,
+      "trace_history_bytes": 0,
+      "memory_budget_bytes": 524288,
+      "trace_memory_budget_bytes": 1048576,
+      "dropped_batches": 0,
+      "skipped_rounds": 0
+    },
+    {
+      "build": "current",
+      "client": "sse",
+      "process_count": 300,
+      "trace": true,
+      "duration_seconds": 2.003183235000506,
+      "rss_bytes": 14118912,
+      "peak_bytes": 14118912,
+      "cpu_ticks": 8,
+      "threads": 4,
+      "cpu_percent_one_core": 2.995232735161386,
+      "rss_sampled_peak_bytes": 13615104,
+      "received_bytes": 697899,
+      "received_bytes_per_second": 348394.9884393994,
+      "stream_errors": [],
+      "performance": {
+        "sampling": {
+          "process": {
+            "budget_us": 500000,
+            "last_sample_us": 6955,
+            "max_sample_us": 8173,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "system": {
+            "budget_us": 1000000,
+            "last_sample_us": 432,
+            "max_sample_us": 2619,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          },
+          "trace": {
+            "budget_us": 500000,
+            "last_sample_us": 746,
+            "max_sample_us": 931,
+            "over_budget_rounds": 0,
+            "rounds": 4
+          }
+        },
+        "slow_clients": 0,
+        "transport": {
+          "jsonl": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "sse": {
+            "batches": 9,
+            "payload_bytes": 733817
+          },
+          "tsv": {
+            "batches": 0,
+            "payload_bytes": 0
+          }
+        },
+        "windows": {
+          "process": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 0,
+            "span_seconds": 2.8046052749996306,
+            "to_uptime": 12.80460527499963
+          },
+          "system": {
+            "from_uptime": 10.0,
+            "lost_through_sequence": 0,
+            "span_seconds": 2.8046052749996306,
+            "to_uptime": 12.80460527499963
+          },
+          "trace": {
+            "from_uptime": 11.803056407999975,
+            "lost_through_sequence": 6,
+            "span_seconds": 1.0015488669996557,
+            "to_uptime": 12.80460527499963
+          }
+        },
+        "write_timeouts": 0
+      },
+      "history_bytes": 499456,
+      "trace_history_bytes": 885914,
+      "memory_budget_bytes": 524288,
+      "trace_memory_budget_bytes": 1048576,
+      "dropped_batches": 0,
+      "skipped_rounds": 0
+    },
+    {
+      "build": "current",
+      "client": "slow",
+      "process_count": 300,
+      "trace": true,
+      "duration_seconds": 15.029123106000043,
+      "rss_bytes": 14782464,
+      "peak_bytes": 14782464,
+      "cpu_ticks": 17,
+      "threads": 4,
+      "cpu_percent_one_core": 0.9315247404162131,
+      "rss_sampled_peak_bytes": 14782464,
+      "received_bytes": 0,
+      "received_bytes_per_second": 0.0,
+      "stream_errors": [],
+      "performance": {
+        "sampling": {
+          "process": {
+            "budget_us": 500000,
+            "last_sample_us": 6568,
+            "max_sample_us": 9037,
+            "over_budget_rounds": 0,
+            "rounds": 17
+          },
+          "system": {
+            "budget_us": 1000000,
+            "last_sample_us": 599,
+            "max_sample_us": 2570,
+            "over_budget_rounds": 0,
+            "rounds": 17
+          },
+          "trace": {
+            "budget_us": 500000,
+            "last_sample_us": 403,
+            "max_sample_us": 587,
+            "over_budget_rounds": 0,
+            "rounds": 17
+          }
+        },
+        "slow_clients": 0,
+        "transport": {
+          "jsonl": {
+            "batches": 0,
+            "payload_bytes": 0
+          },
+          "sse": {
+            "batches": 4,
+            "payload_bytes": 275835
+          },
+          "tsv": {
+            "batches": 0,
+            "payload_bytes": 0
+          }
+        },
+        "windows": {
+          "process": {
+            "from_uptime": 22.824771357999452,
+            "lost_through_sequence": 38,
+            "span_seconds": 3.00593304800077,
+            "to_uptime": 25.830704406000223
+          },
+          "system": {
+            "from_uptime": 22.824771357999452,
+            "lost_through_sequence": 38,
+            "span_seconds": 3.00593304800077,
+            "to_uptime": 25.830704406000223
+          },
+          "trace": {
+            "from_uptime": 24.82877975199972,
+            "lost_through_sequence": 45,
+            "span_seconds": 1.0019246540005042,
+            "to_uptime": 25.830704406000223
+          }
+        },
+        "write_timeouts": 1
+      },
+      "history_bytes": 499456,
+      "trace_history_bytes": 885914,
+      "memory_budget_bytes": 524288,
+      "trace_memory_budget_bytes": 1048576,
+      "dropped_batches": 0,
+      "skipped_rounds": 0
+    }
+  ]
+}

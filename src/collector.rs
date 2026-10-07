@@ -695,6 +695,8 @@ impl Collector {
                         threads: s.threads,
                         cpu_seconds: ticks as f64 / self.hz as f64,
                         cpu_percent: percent,
+                        virtual_bytes: s.virtual_bytes,
+                        cpu_status: status,
                     });
                     next.insert(entity, (ticks, uptime));
                 }

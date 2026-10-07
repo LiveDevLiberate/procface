@@ -31,6 +31,8 @@ def main():
     parser.add_argument('--seconds',type=int,default=4)
     parser.add_argument('--warmup',type=int,default=2)
     parser.add_argument('--baseline-binary',type=Path)
+    parser.add_argument('--memory-bytes',type=int,default=4194304)
+    parser.add_argument('--trace-memory-bytes',type=int,default=2097152)
     args=parser.parse_args()
     assert args.seconds>=2 and args.warmup>=0
     results=[]
@@ -41,7 +43,9 @@ def main():
         with tempfile.TemporaryDirectory(prefix='procface-profile-') as folder:
             root=Path(folder)/'proc';root.mkdir();fixture(root,count)
             if trace:(root/'100/sched').write_text('x'*(200*1024))
-            daemon=Daemon(str(binary.resolve()),root)
+            daemon=Daemon(str(binary.resolve()),root,
+                           '--memory-bytes',args.memory_bytes,
+                           '--trace-memory-bytes',args.trace_memory_bytes)
             response=None;worker=None;stop=threading.Event();received=[0];errors=[]
             try:
                 if trace:assert daemon.request('/api/v1/trace','POST',{'pid':100})[0]==202
@@ -77,6 +81,7 @@ def main():
                     'received_bytes_per_second':(received[0]-received_start)/elapsed,'stream_errors':errors.copy(),
                     'performance':health.get('performance'),
                     'history_bytes':health['memory_bytes'],'trace_history_bytes':health['trace_memory_bytes'],
+                    'memory_budget_bytes':args.memory_bytes,'trace_memory_budget_bytes':args.trace_memory_bytes,
                     'dropped_batches':health['dropped_batches'],'skipped_rounds':health['skipped_rounds']})
                 print(f'{label}: {count} processes, trace={trace}, client={client}: measured',flush=True)
             finally:

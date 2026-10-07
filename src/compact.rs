@@ -327,6 +327,8 @@ mod tests {
             threads: 2,
             cpu_seconds: 0.125,
             cpu_percent: None,
+            virtual_bytes: u64::MAX,
+            cpu_status: Status::Stale,
         };
         let values = [
             json!(42),

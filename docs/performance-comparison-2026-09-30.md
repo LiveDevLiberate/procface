@@ -30,3 +30,28 @@ python3 tools/measure_resources.py \
 baseline 由 `git archive 12993e6` 提取到独立的 target 子目录，使用同一工具链执行 `cargo build --locked`。支持更长 warmup/seconds；每轮输出包含采样状态、丢批、RSS、CPU 和接收字节，不能只看平均值忽略丢批。
 
 真实浏览器联调使用 Windows Edge 连接 WSL daemon，HTTP 和 file 两个入口的连接、实时图表、Trace 重连接管、停止和导出通过。WSL 自身缺少 Playwright Chromium，runner 增加 `--node` 与 `--file-url` 参数以复用 Windows 浏览器。该联调为短时功能回归，不是浏览器长时间稳定性测量。
+
+## 进程批次压缩复测
+
+随后将 daemon 普通进程历史从“逐指标样本加进程摘要”改为缓存单份进程行，输出 API、CLI、TSV 和 Prometheus 时再恢复逐指标字段；历史缓存放不下的最新批次保留为实时快照。WSL x86_64 debug、模拟 procfs、1 秒采样、预热 1 秒、每场景约 3 秒的复测结果如下：
+
+| 进程数 | 客户端 | daemon RSS | 普通历史缓存 | 丢批 | 跳过轮次 |
+|---:|---|---:|---:|---:|---:|
+| 1 | 无 | 8.96 MiB | 0.28 MiB | 0 | 0 |
+| 300 | 无 | 10.62 MiB | 0.60 MiB | 0 | 0 |
+| 3000 | 无 | 21.36 MiB | 2.32 MiB | 0 | 0 |
+| 300 | SSE | 11.70 MiB | 0.60 MiB | 0 | 0 |
+
+此前同类 3000 进程场景在默认 4 MiB 历史预算下丢弃 12 批；压缩后单批可以进入历史缓存。3000 进程长时间保留仍会按字节预算淘汰旧数据，60 秒依然是上限目标而非硬保证。结果仅说明重复对象优化有效，正式内存预算仍需在 ARM32、ARM64、RISC-V 和 x86 目标板复测。
+
+## 内存预算扫描
+
+`tools/measure_resources.py` 支持 `--memory-bytes` 和 `--trace-memory-bytes`，用于在不同设备或模拟负载下扫描历史预算。当前 WSL x86_64 模拟 procfs、3000 进程、1 秒采样、约 2 秒测量结果：
+
+| 普通历史预算 | 3000 进程丢批 | 3000 进程历史占用 |
+|---:|---:|---:|
+| 512 KiB | 3 | 230 KiB（仅保留可容纳的批次） |
+| 768 KiB | 0 | 637 KiB |
+| 1 MiB | 0 | 637 KiB |
+
+因此当前夹具的普通采集最低预算约为 768 KiB，并建议留出至少 2 倍余量；这只是测试下限，不是目标板最低配置。trace 预算也可独立扫描；单进程 trace 的最低值必须按启用的 extended、threads、sensitive 选项分别测量。
