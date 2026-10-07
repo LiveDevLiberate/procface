@@ -65,6 +65,10 @@ Grafana 等外部监控系统 SHOULD 通过 daemon 的 Prometheus `/metrics` 端
 
 前端 MUST 展示 PSI、中断和 softirq 的可用时间序列，并在状态异常时显示 unsupported、permission_denied、stale、discontinuity 或 incomplete。Trace 页面 MUST 将结构化字段按内存、调度、I/O、文件描述符和线程分组，并与总览图表共享 uptime 时间轴。前端 MUST 保留现有历史 IndexedDB、断链 gap、不跨 gap 连线、导出和 Trace 重连停止行为。
 
+### Requirement: Bounded history status
+
+前端 MUST 显示 daemon 返回的实际历史窗口跨度、淘汰或超大批次造成的 gap，以及普通采集或 trace 批次的 `complete` 状态。`history_seconds` 只能作为窗口上限展示，不得显示为已保证的历史时长。当最新批次因字节预算无法进入历史缓存但仍通过实时旁路发布时，前端 MUST 明确标记“实时已接收、历史未保存”，不得把该批次伪装成可回看的连续历史。
+
 #### Scenario: 总览发现压力后进入 Trace
 - **WHEN** 用户在 PSI 或中断图表发现异常并从进程列表选择 PID
 - **THEN** 前端切换到 Trace，保留总览历史，并显示该 PID 在相同 uptime 区间的 CPU、内存和 I/O 数据

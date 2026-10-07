@@ -55,7 +55,7 @@ release 构建 MUST 保留 daemon、普通 procfs 指标和鉴权 API。网页�
 
 ### Requirement: 进程采集范围
 
-daemon MUST 提供 `--process-scope none|self|pid-list`。默认值为 `self`，扫描当前用户可见的全部进程，但默认只读取与 Linux `top` 对齐的轻量字段（`/proc/PID/stat`、必要的 `status` 字段）。daemon MUST 使用有界的 `--process-result-limit`（默认 256）保留/返回候选结果，并支持 `--process-budget-ms` 预算。`none` 禁用进程采集；`pid-list` 只采集显式 PID。
+daemon MUST 提供 `--process-scope none|self|pid-list`。默认值为 `self`，扫描当前用户可见的全部进程，但默认只读取与 Linux `top` 对齐的轻量字段（`/proc/PID/stat`、必要的 `status` 字段）。普通模式不得按 Top-K 或固定进程数截断；必须支持 `--process-budget-ms` 预算。`none` 禁用进程采集；`pid-list` 只采集显式 PID。
 
 ### Requirement: 流协议
 
@@ -74,9 +74,17 @@ The daemon MUST accept API requests from a separately hosted single-file HTML fr
 
 前端断开后重新连接时 MUST 先通过 `/api/v1/series` 请求短期窗口，再连接 `/api/v1/stream` 接收新样本。daemon MUST 保留不超过配置窗口的样本，不得为重连客户端保存完整历史。SSE MUST 发送 heartbeat 和 error 事件；慢客户端 MUST 施加背压或主动断开。
 
+### Requirement: Bounded memory configuration
+
+daemon MUST 通过启动参数 `--memory-bytes` 和 `--trace-memory-bytes` 分别配置普通采集与单进程 trace 的内存预算。v1 不提供运行中的热修改接口；修改预算必须重启 daemon。两个预算 MUST 独立计量、独立淘汰，且不得因 trace 预算耗尽而清空普通采集历史。
+
+`--history-seconds` 表示时间上限，不是历史覆盖的硬保证。当字节预算先于时间上限耗尽时，daemon MUST 淘汰最旧批次，并在 health、series 或批次状态中保留实际窗口跨度与缺口信息。普通采集和 trace 的预算不足都不得伪装成连续历史。
+
+当单个批次超过对应字节预算时，daemon MUST 保留该组最新批次的有界实时快照并继续发布实时数据，同时标记历史未保存或缺口；不得为了保存该批次无限扩大内存，也不得让历史缓存拒绝导致实时观察停止。实时旁路最多保留每个采集组一个最新批次。
+
 ### Requirement: Prometheus process opt-in
 
-`/metrics` MUST 默认只导出系统级指标。进程指标只有在显式设置 `--prometheus-process` 后才导出；该选项必须在 capabilities 中报告。启用后仍 MUST 遵守当前进程采集范围和最大进程数限制，并使用有限的 `pid`、`comm` labels。
+`/metrics` MUST 默认只导出系统级指标。进程指标只有在显式设置 `--prometheus-process` 后才导出；该选项必须在 capabilities 中报告。启用后仍 MUST 遵守当前进程采集范围和完整轻量进程集合，并使用有限的 `pid`、`comm` labels。
 
 ### Requirement: Capabilities response
 
@@ -134,7 +142,7 @@ The daemon MUST accept API requests from a separately hosted single-file HTML fr
 
 ### Requirement: Process API
 
-`GET /api/v1/processes` MUST 默认只返回当前用户可见进程，默认结果上限为 256；后端 MUST 按请求的 Top 指标维护有限结果集；前端负责最终展示排序。超过结果上限时 MUST 返回 `truncated: true`，但不得因此停止扫描剩余可见进程。无法读取的 PID 可以跳过，但必须计入诊断统计。进程身份 MUST 同时包含 `pid` 和 `/proc/PID/stat` 的 `starttime_ticks`；规范化 entity 使用 `process:<pid>:<starttime_ticks>`。
+`GET /api/v1/processes` MUST 默认返回当前用户本轮可见进程的完整轻量集合；后端不得按请求的 Top 指标排序或截断，前端负责最终展示排序和分页。无法读取的 PID 可以跳过，但必须计入诊断统计。进程身份 MUST 同时包含 `pid` 和 `/proc/PID/stat` 的 `starttime_ticks`；规范化 entity 使用 `process:<pid>:<starttime_ticks>`。
 
 单进程接口 MUST 提供：
 
@@ -150,7 +158,7 @@ GET /api/v1/processes/{pid}/stream
 
 ### Requirement: Top-aligned process collection
 
-普通进程指标 MUST 对齐 Linux `top` 的轻量采集模型：扫描当前用户全部可见 PID，默认只读取 `/proc/PID/stat` 和必要的 `/proc/PID/status` 字段，使用相邻采样计算 CPU 等基础速率，并维护有界 Top-K 结果。扩展 procfs 文件和敏感字段不得在普通进程列表中默认读取。`trace --pid PID` 才允许按配置读取 extended/diagnostic 字段。
+普通进程指标 MUST 对齐 Linux `top` 的轻量采集模型：扫描当前用户全部可见 PID，默认只读取 `/proc/PID/stat` 和必要的 `/proc/PID/status` 字段，使用相邻采样计算 CPU 等基础速率，并保留完整的本轮进程集合。扩展 procfs 文件和敏感字段不得在普通进程列表中默认读取。`trace --pid PID` 才允许按配置读取 extended/diagnostic 字段。
 
 ### Requirement: Trace isolation
 
@@ -158,7 +166,7 @@ GET /api/v1/processes/{pid}/stream
 
 ### Requirement: Sampling floor and scheduling
 
-所有系统、普通进程和 trace 采样间隔 MUST 不小于 1 秒；更高频率性能分析不属于 ProcFace，建议使用 perf。系统指标采集优先级最高；普通进程扫描超时时跳过本轮；trace 使用 daemon 内独立的低优先级 worker、独立间隔和有界任务队列，不得阻塞系统指标采集、普通进程扫描或 HTTP 发布。trace 间隔同样不得小于 1 秒。
+所有系统、普通进程和 trace 采样间隔 MUST 不小于 1 秒；更高频率性能分析不属于 ProcFace，建议使用 perf。系统指标采集优先级最高；普通进程扫描超时时 MUST 跳过整轮，不得发布不完整的普通进程批次；trace 使用 daemon 内独立的低优先级 worker、独立间隔和有界任务队列，不得阻塞系统指标采集、普通进程扫描或 HTTP 发布。trace 间隔同样不得小于 1 秒。
 
 ### Requirement: Single active trace
 
