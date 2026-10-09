@@ -513,6 +513,16 @@ async fn health(State(app): State<Shared>) -> Json<Value> {
     let history_not_saved = live_oversized_bytes != 0;
     let sampling = app.sampling.lock().unwrap();
     let transport = app.transport.lock().unwrap();
+    let status = if !app.running.load(Ordering::Relaxed) {
+        "error"
+    } else if app.errors.load(Ordering::Relaxed) > 0
+        || app.skipped.load(Ordering::Relaxed) > 0
+        || history_not_saved
+    {
+        "degraded"
+    } else {
+        "ok"
+    };
     let window = |store: &Store, group: &str| {
         let mut batches = store.history.iter().filter(|(b, _)| b.group == group);
         let first = batches.next().map(|(b, _)| b);
@@ -523,7 +533,7 @@ async fn health(State(app): State<Shared>) -> Json<Value> {
     };
     let windows = json!({"system":window(&n,"system"),"process":window(&n,"process"),"trace":window(&t,"trace")});
     Json(
-        json!({"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"live_oversized_bytes":live_oversized_bytes,"history_not_saved":history_not_saved,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"windows":windows,"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed),"write_timeouts":app.write_timeouts.load(Ordering::Relaxed)}}),
+        json!({"status":status,"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"live_oversized_bytes":live_oversized_bytes,"history_not_saved":history_not_saved,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"windows":windows,"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed),"write_timeouts":app.write_timeouts.load(Ordering::Relaxed)}}),
     )
 }
 async fn current(State(app): State<Shared>, Query(q): Query<Filter>) -> Response {

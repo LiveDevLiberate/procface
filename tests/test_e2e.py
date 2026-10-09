@@ -254,6 +254,7 @@ def main():
                 assert time.monotonic()<deadline
                 time.sleep(.02)
             assert health['live_oversized_bytes']>0
+            assert health['status']=='degraded'
             assert len(d.data('/api/v1/processes')['processes'])==300
         finally:d.close()
         d=Daemon(binary,root,'--process-budget-ms',1)
