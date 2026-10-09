@@ -73,9 +73,9 @@
 - [x] 8.1 在模拟 procfs 上覆盖缺失文件、权限错误、解析错误、计数器回退和 PID 复用场景
 - [ ] 8.2 在四个正式架构上验证启动、P0 采集、daemon API、SSE 和 trace 资源预算
 - [x] 8.3 验证断网重连、CORS、Bearer token、Prometheus 抓取和 SQLite 损坏隔离
-- [ ] 8.4 生成匹配版本的 musl 二进制、诊断二进制和单体 HTML GitHub Release 包，并核对 LICENSE 与 API 版本字段
+- [x] 8.4 生成匹配版本的 musl 二进制、诊断二进制和单体 HTML GitHub Release 包，并核对 LICENSE 与 API 版本字段；验证产物为 `v0.1.0`
 - [x] 8.5 先生成内嵌签名版本声明，再对最终 HTML 生成外部 SHA-256 签名清单并提供独立校验说明；验证修改 HTML、清单或签名时失败，产物不含签名私钥
-- [ ] 8.6 配置 GitHub Pages 固定入口部署正式 HTML，验证与 Release 产物字节一致且在线入口更新后仍执行 API 范围检查
+- [x] 8.6 配置 GitHub Pages 固定入口部署正式 HTML，验证与 Release 产物字节一致且在线入口更新后仍执行 API 范围检查；线上与 Release HTML SHA-256 一致
 - [ ] 8.7 实测基础内存、不同进程数、trace 和慢客户端积压峰值，据此调整缓存及队列默认字节预算和淘汰策略，记录目标板测量条件与结果
 
 ## 首个实现里程碑
