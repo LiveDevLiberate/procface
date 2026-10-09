@@ -25,6 +25,9 @@ def main():
             assert raw('/api/v1/capabilities')['sampling_interval_s']==1
             expanded=decode(current)
             assert {b['group'] for b in expanded['batches']}=={'system','process'}
+            current_process=decode(raw('/api/v1/current?group=process&metric=process.rss_bytes'))
+            assert {b['group'] for b in current_process['batches']}=={'process'}
+            assert {s['metric'] for s in current_process['batches'][0]['samples']}=={'process.rss_bytes'}
             for b in current['batches']:
                 assert isinstance(b,list) and len(b)==9
                 decode({**current,'batches':[b]})  # 不依赖此前的响应。

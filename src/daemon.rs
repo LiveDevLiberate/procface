@@ -540,11 +540,16 @@ async fn current(State(app): State<Shared>, Query(q): Query<Filter>) -> Response
     if !q.validate() {
         return error(StatusCode::BAD_REQUEST, "invalid_query");
     }
-    current_compact(State(app)).await
+    current_compact(State(app), q).await
 }
 
-async fn current_compact(State(app): State<Shared>) -> Response {
-    let batches = app.current();
+async fn current_compact(State(app): State<Shared>, q: Filter) -> Response {
+    let batches = app
+        .current()
+        .into_iter()
+        .filter(|b| q.matches(b))
+        .map(|b| q.filter(&b))
+        .collect::<Vec<_>>();
     let mut encoded = Vec::new();
     for b in batches {
         match app.compact(&b) {
