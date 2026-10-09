@@ -104,6 +104,7 @@ impl TraceControl {
 }
 struct App {
     args: DaemonArgs,
+    started_at: Instant,
     token: String,
     uid: u32,
     keys: Vec<VerifyingKey>,
@@ -513,6 +514,14 @@ async fn health(State(app): State<Shared>) -> Json<Value> {
     let history_not_saved = live_oversized_bytes != 0;
     let sampling = app.sampling.lock().unwrap();
     let transport = app.transport.lock().unwrap();
+    let active_clients = app.args.max_connections as usize - app.streams.available_permits();
+    let last_duration_us = sampling[..2].iter().filter_map(|s| s.last_sample_us).max();
+    let late_samples = sampling[..2]
+        .iter()
+        .map(|s| s.over_budget_rounds)
+        .sum::<u64>();
+    let history_samples = n.history.len() + t.history.len();
+    let estimated_bytes = n.bytes + t.bytes + live_oversized_bytes;
     let status = if !app.running.load(Ordering::Relaxed) {
         "error"
     } else if app.errors.load(Ordering::Relaxed) > 0
@@ -533,7 +542,7 @@ async fn health(State(app): State<Shared>) -> Json<Value> {
     };
     let windows = json!({"system":window(&n,"system"),"process":window(&n,"process"),"trace":window(&t,"trace")});
     Json(
-        json!({"status":status,"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"live_oversized_bytes":live_oversized_bytes,"history_not_saved":history_not_saved,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"windows":windows,"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed),"write_timeouts":app.write_timeouts.load(Ordering::Relaxed)}}),
+        json!({"status":status,"uptime_s":app.started_at.elapsed().as_secs_f64(),"collector":{"running":app.running.load(Ordering::Relaxed),"interval_s":app.args.interval,"last_duration_ms":last_duration_us.map(|v|v as f64/1000.0),"late_samples":late_samples,"dropped_samples":app.skipped.load(Ordering::Relaxed)},"clients":{"active":active_clients,"limit":app.args.max_connections},"memory":{"history_batches":history_samples,"history_limit_seconds":app.args.history_seconds,"estimated_bytes":estimated_bytes},"session_id":app.session,"sequence":app.sequence.load(Ordering::Relaxed),"errors":app.errors.load(Ordering::Relaxed),"skipped_rounds":app.skipped.load(Ordering::Relaxed),"memory_bytes":n.bytes,"trace_memory_bytes":t.bytes,"live_oversized_bytes":live_oversized_bytes,"history_not_saved":history_not_saved,"dropped_batches":n.dropped+t.dropped,"trace":app.trace.lock().unwrap().json(),"persistence":*app.persistence.status.lock().unwrap(),"performance":{"windows":windows,"sampling":{"system":sampling[0],"process":sampling[1],"trace":sampling[2]},"transport":{"sse":transport[0],"jsonl":transport[1],"tsv":transport[2]},"slow_clients":app.slow_clients.load(Ordering::Relaxed),"write_timeouts":app.write_timeouts.load(Ordering::Relaxed)}}),
     )
 }
 async fn current(State(app): State<Shared>, Query(q): Query<Filter>) -> Response {
@@ -1097,6 +1106,7 @@ pub fn run(args: DaemonArgs) -> io::Result<()> {
         streams: Arc::new(Semaphore::new(args.max_connections as usize)),
         exports: Arc::new(Semaphore::new(2)),
         args: args.clone(),
+        started_at: Instant::now(),
         token,
         uid,
         keys,

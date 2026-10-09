@@ -183,6 +183,15 @@ def main():
             time.sleep(1.2)
             assert len(d.data("/api/v1/processes")["processes"])==300
             performance=d.data("/api/v1/health")["performance"]
+            health=d.data('/api/v1/health')
+            assert health['uptime_s']>=0
+            assert health['collector']['running'] and health['collector']['interval_s']==1
+            assert health['collector']['last_duration_ms'] is not None
+            assert health['collector']['late_samples']==0
+            assert health['collector']['dropped_samples']==0
+            assert health['clients']=={'active':0,'limit':1}
+            assert health['memory']['estimated_bytes']>=health['memory_bytes']
+            assert health['memory']['history_batches']>0 and health['memory']['history_limit_seconds']==60
             assert set(performance['sampling']) == {'system','process','trace'}
             for group in ('system','process'):
                 stats=performance['sampling'][group]

@@ -123,6 +123,8 @@ def main():
                     if time.monotonic()>=deadline:raise
                     time.sleep(.1)
             assert event(response)[0]=="connected"
+            health=daemon.data("/api/v1/health")
+            assert health["clients"]=={"active":1,"limit":1}
             start=time.monotonic()
             while True:
                 name, data=event(response)
@@ -133,6 +135,7 @@ def main():
                     assert time.monotonic()-start>=13
                     break
             response.close()
+            assert daemon.data("/api/v1/health")["clients"]["active"]==0
             result=daemon.data("/api/v1/series?limit=1")
             assert len(result["batches"])==1 and result["has_more"]
             follow=stream(daemon,"/api/v1/export?format=jsonl&follow=1")

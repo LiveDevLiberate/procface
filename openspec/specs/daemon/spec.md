@@ -115,7 +115,7 @@ daemon MUST 通过启动参数 `--memory-bytes` 和 `--trace-memory-bytes` 分�
 
 ### Requirement: Health response
 
-`GET /api/v1/health` MUST 返回 daemon 状态、uptime、collector 状态、最近采样耗时、late/dropped 计数、内存窗口使用量、客户端数量和持久化状态。顶层 `status` MUST 使用 `ok`、`degraded` 或 `error`：采样延迟、丢样本或部分指标不可用时至少为 `degraded`；采集器停止或无法提供当前样本时为 `error`。
+`GET /api/v1/health` MUST 返回 daemon 状态、uptime、collector 状态、最近采样耗时、late/dropped 计数、内存窗口使用量、客户端数量和持久化状态。顶层 `status` MUST 使用 `ok`、`degraded` 或 `error`：采样延迟、丢样本、部分指标不可用或实时批次未进入历史时至少为 `degraded`；采集器停止或无法提供当前样本时为 `error`。响应 MUST 包含 `uptime_s`、`collector.running/interval_s/last_duration_ms/late_samples/dropped_samples`、`memory.history_batches/history_limit_seconds/estimated_bytes`、`clients.active/limit` 和 `persistence`。为保持既有客户端兼容，新增汇总对象不得移除已有的细粒度字段。
 
 ```json
 {
@@ -130,7 +130,7 @@ daemon MUST 通过启动参数 `--memory-bytes` 和 `--trace-memory-bytes` 分�
 
 ### Requirement: Current and series API
 
-`GET /api/v1/current` MUST 返回当前 `session_id`、`sequence`、`uptime_s` 和样本数组；默认返回当前可用的 P0 系统指标，并 MAY 通过 `metrics`、`entities` 参数筛选。`GET /api/v1/series` MUST 支持按 `metric`、`entity`、`from_uptime`、`to_uptime` 和 `limit` 查询短期内存窗口，结果按 `sequence` 升序，并返回 `gaps` 和 `truncated` 标记。默认 `limit` 为 120，最大为 3600；超出窗口不得读取设备文件或伪造历史。
+`GET /api/v1/current` MUST 返回当前 `session_id`、`sequence`、`uptime_s` 和样本数组；默认返回当前可用的系统及进程指标，并 MAY 通过 `group`、`metric`、`entity` 参数筛选。`GET /api/v1/series` MUST 支持按 `group`、`metric`、`entity`、`from_uptime`、`to_uptime` 和 `limit` 查询短期内存窗口，结果按 `sequence` 升序，并返回 `history_gap`、`lost_through_sequence` 和 `truncated` 标记。默认 `limit` 为 120，最大为 3600；超出窗口不得读取设备文件或伪造历史。
 
 ### Requirement: SSE stream
 

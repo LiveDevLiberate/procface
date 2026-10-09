@@ -53,6 +53,8 @@ const http=require('node:http');
   assert.deepEqual(state,{count:7,trace:'running',canvas:true,row:true,detail:true,open:true,right:'right',radius:'0px'});
   await page.evaluate(()=>showPerformance({memory_bytes:4096,trace_memory_bytes:1024,performance:{sampling:{system:{last_sample_us:1500000,budget_us:1000000},trace:{last_sample_us:null,budget_us:0}}}}));
   assert.match(await page.locator('#performanceState').textContent(),/degraded.*1500.0 ms/);
+  await page.evaluate(()=>showPerformance({status:'degraded',performance:{sampling:{system:{last_sample_us:1000,budget_us:1000000}}}}));
+  assert.match(await page.locator('#performanceState').textContent(),/性能：degraded/);
   await page.evaluate(()=>showPerformance({performance:{sampling:{system:{last_sample_us:1000,budget_us:1000000,over_budget_rounds:1}}}}));
   assert.match(await page.locator('#performanceState').textContent(),/性能：ok/);
   await page.evaluate(()=>showPerformance({performance:{sampling:{},windows:{system:{span_seconds:12},trace:{span_seconds:null}}}}));
