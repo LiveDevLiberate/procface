@@ -31,6 +31,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory web
 
 ## 文档与下载
 
+- [文档站（中文 / English）](https://livedevliberate.github.io/procface-docs/)
 - [在线网页](https://livedevliberate.github.io/procface/) · [下载](https://github.com/LiveDevLiberate/procface/releases)
 - [使用指南](docs/usage.md)：CLI、daemon、API、诊断构建与测试
 - [发布与签名校验](docs/release.md) · [紧凑协议](docs/compact-wire.md) · [国际化](docs/i18n.md)

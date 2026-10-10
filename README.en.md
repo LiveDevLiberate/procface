@@ -31,6 +31,7 @@ Open <http://localhost:8000/procface-web.html>, enter `http://127.0.0.1:9387` an
 
 ## Documentation and downloads
 
+- [Documentation site (中文 / English)](https://livedevliberate.github.io/procface-docs/)
 - [Hosted frontend](https://livedevliberate.github.io/procface/) · [Downloads](https://github.com/LiveDevLiberate/procface/releases)
 - [User guide](docs/usage.en.md): CLI, daemon, API, diagnostic builds and testing
 - [Releases and signature verification](docs/release.en.md) · [Compact protocol](docs/compact-wire.en.md) · [Internationalization](docs/i18n.en.md)
