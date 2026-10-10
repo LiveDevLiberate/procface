@@ -2,7 +2,7 @@
 
 面向嵌入式 Linux 的 procfs 性能分析工具。Rust 二进制直接采集，不依赖 sysstat 或 BusyBox。网页为独立单体 HTML，设备只提供 API。
 
-当前为 0.1.0 开发版，尚未正式发布。CLI、P0 指标、daemon、trace、SQLite 可选写入与前端已有初版实现；完整验收仍按 openspec/changes/procface-v1-foundation/tasks.md 推进。
+当前为 0.1.0 开发版。CLI、P0 指标、daemon、trace、SQLite 可选写入与前端已有初版实现；完整验收仍按 openspec/changes/procface-v1-foundation/tasks.md 推进。
 
 ## 构建
 
@@ -33,7 +33,7 @@ python3 -m http.server 8000 --bind 127.0.0.1 --directory web
 
 开发调试保留 token、CORS 和 API 检查，不启用敏感读取。正式前端使用内嵌签名版本声明，daemon 通过 --frontend-public-key 或构建环境变量 PROCFACE_RELEASE_KEY 信任发布公钥。签名声明不能证明浏览器运行代码未被修改。
 
-前端提供实时图表、默认前 16 个进程及前端筛选排序、独立 trace、IndexedDB 历史、CSV/TSV/JSON 导出与 PNG 单图下载。断线不停止 daemon 或 trace；重连可停止原 trace，再切换 PID。浏览器可能限制本地网络访问，需检查权限与来源配置，不要关闭浏览器安全机制。
+前端提供中文和 English 双语界面（右上角语言选择器）、实时图表、默认前 16 个进程及前端筛选排序、独立 trace、IndexedDB 历史、CSV/TSV/JSON 导出与 PNG 单图下载。语言切换不影响 daemon 采集、Trace 或本地历史。断线不停止 daemon 或 trace；重连可停止原 trace，再切换 PID。浏览器可能限制本地网络访问，需检查权限与来源配置，不要关闭浏览器安全机制。
 
 界面分为“总览 / 进程 / Trace”三页，使用等宽字体与方括号按钮。总览按 CPU、负载、内存、磁盘、网络和压力分组；可通过 API 指标筛选查看中断与 softirq。进程页选择 PID 后进入 Trace 页，Trace 会按状态、内存、调度、I/O、线程和原始 procfs 字段展示结构化值及读取状态。切页不会停止订阅或清空历史。连接成功后配置自动收起，公共栏保留设备、采样间隔、uptime 和断链状态。
 
@@ -83,7 +83,7 @@ python3 tools/release_frontend.py build --key /安全路径/release.key --versio
 python3 tools/release_frontend.py verify --html dist/procface-web.html --manifest dist/frontend-manifest.json --public-key 可信Base64公钥
 ~~~
 
-先生成内嵌签名声明，再对最终 HTML 生成外部 SHA-256 签名清单。发布私钥不进入产物。Pages 与 Release 应使用同一 HTML 字节。项目仓库为 [LiveDevLiberate/procface](https://github.com/LiveDevLiberate/procface)，已公开；Pages 发布流程与公钥已配置，但线上旧预览尚未更新为当前实现，状态和步骤见 [发布操作](docs/release.md)。
+先生成内嵌签名声明，再对最终 HTML 生成外部 SHA-256 签名清单。发布私钥不进入产物。Pages 与 Release 应使用同一 HTML 字节。项目仓库为 [LiveDevLiberate/procface](https://github.com/LiveDevLiberate/procface)，已公开；Pages 发布流程与公钥已配置，国际化约定见 [国际化说明](docs/i18n.md)，状态和步骤见 [发布操作](docs/release.md)。
 
 正式目录组装使用 `tools/package_release.py`，生成 Release 附件与字节一致的 Pages 目录；具体构建、上传与验收步骤见 [发布操作](docs/release.md)。该工具不自动上传或部署。
 
