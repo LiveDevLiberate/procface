@@ -1,5 +1,7 @@
 # 发布操作
 
+简体中文 | [English](release.en.md)
+
 2026-10-10 已发布正式开发版 Release `v0.1.0`，包含四架构的 release/diagnostic 包、签名前端和校验清单。仓库为 https://github.com/LiveDevLiberate/procface ，已公开。Pages 位于 https://livedevliberate.github.io/procface/ ，由 Release 自动部署；线上 HTML 与 Release 的 `procface-web.html` 字节一致，SHA-256 为 `518574bf6bc5423454f995443381ae827509fa28f0c47ab03919ff98570baf8c`。目标板启动、采样、Trace 和资源测量仍须落实。
 
 历史预览部署（已撤下）：2026-09-28 的 `v0.1.0-preview.1` 使用旧 HTML，SHA-256 为 `4ae7ab9fffb77a78810e4c4dab3ae8445fedad19c4d7cc80696a28925b619354`。正式部署运行：https://github.com/LiveDevLiberate/procface/actions/runs/37961063975 。发布公钥为 `U30NiFFqHG7qq96W1V34mHuPxs23qFiVp7R6eYw6gkQ=`；daemon 使用前应通过维护者确认此信任根。此次上线与下载校验不替代目标板验收。

@@ -1,5 +1,7 @@
 # 紧凑线格式实施记录
 
+简体中文 | [English](compact-wire.en.md)
+
 状态：current/series/stream、进程列表与进程 current/series/stream 默认使用紧凑数据，JSONL 导出同样使用紧凑批次；旧对象输出分支已移除。`wire=compact` 仍可显式声明，但省略时结果相同。CLI、TSV 与 Prometheus 不受此切换影响。OpenSpec 7.11–7.13 尚未完成全部验收。
 
 API 主版本继续为 1。线格式使用独立标识 `procface-compact-v1`，旧对象协议不保留兼容分支。CLI、TSV API、Prometheus 和前端下载仍使用既有可读格式。

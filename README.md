@@ -1,5 +1,7 @@
 # ProcFace
 
+简体中文 | [English](README.en.md)
+
 面向嵌入式 Linux 的 procfs 性能分析工具。Rust 二进制直接采集，不依赖 sysstat 或 BusyBox。网页为独立单体 HTML，设备只提供 API。
 
 当前为 0.1.0 开发版。CLI、P0 指标、daemon、trace、SQLite 可选写入与前端已有初版实现；完整验收仍按 openspec/changes/procface-v1-foundation/tasks.md 推进。
@@ -98,6 +100,7 @@ cargo build --locked --features diagnostic
 python3 tests/test_e2e.py --binary target/debug/procface --diagnostic
 npm ci --prefix tools
 node tools/test_browser.cjs
+node tools/test_frontend_layout.cjs
 ~~~
 
 浏览器测试默认使用 8765 网页服务、8766 daemon 和固定测试 token。可用 PROCFACE_WEB_URL、PROCFACE_DAEMON_URL、PROCFACE_BROWSER_CHANNEL 覆盖配置。测试 token 不用于实际设备。
