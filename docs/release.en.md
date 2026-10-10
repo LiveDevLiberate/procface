@@ -35,7 +35,7 @@ Each cross-build root must contain `TARGET/release/procface` for ARMv7 hard-floa
 
 The output directory must not already exist. Failed assembly leaves no partial release directory. Successful output contains:
 
-- `assets/`: eight archives, standalone HTML, external signature manifest, public key, LICENSE, version index and SHA256SUMS for Release upload.
+- `assets/`: eight archives, standalone HTML, external signature manifest, public key, LICENSE, version index and SHA256SUMS for Release upload. Archives include Chinese and English READMEs, release guides, compact protocol notes and internationalization guides.
 - `pages/`: identical HTML as `index.html` and `procface-web.html`, external manifest, LICENSE and `.nojekyll` for static hosting.
 
 Configure the daemon's trusted key using `--frontend-public-key`, or embed it at build time with `PROCFACE_RELEASE_KEY`. The daemon does not automatically trust arbitrary keys found beside downloaded files. Do not enable `--allow-unsigned-frontend` for a signed release.

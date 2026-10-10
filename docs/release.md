@@ -2,9 +2,9 @@
 
 简体中文 | [English](release.en.md)
 
-2026-10-10 已发布正式开发版 Release `v0.1.0`，包含四架构的 release/diagnostic 包、签名前端和校验清单。仓库为 https://github.com/LiveDevLiberate/procface ，已公开。Pages 位于 https://livedevliberate.github.io/procface/ ，由 Release 自动部署；线上 HTML 与 Release 的 `procface-web.html` 字节一致，SHA-256 为 `518574bf6bc5423454f995443381ae827509fa28f0c47ab03919ff98570baf8c`。目标板启动、采样、Trace 和资源测量仍须落实。
+2026-10-10 已发布正式开发版 Release `v0.1.0`，包含四架构的 release/diagnostic 包、签名前端和校验清单。仓库为 https://github.com/LiveDevLiberate/procface ，已公开。Pages 位于 https://livedevliberate.github.io/procface/ ，由 Release 自动部署；线上双语 HTML 与 Release 的 `procface-web.html` 字节一致，SHA-256 为 `d963dec9a39d752fc49348108f8b136e3821bcad4c0f1fb48a5efd2a17bd1914`。前端 build ID 为 `888c2f75ce45e20f296415cc04190396394ff261`；本次更新网页和中英文文档，沿用已有 daemon 二进制。目标板启动、采样、Trace 和资源测量仍须落实。
 
-历史预览部署（已撤下）：2026-09-28 的 `v0.1.0-preview.1` 使用旧 HTML，SHA-256 为 `4ae7ab9fffb77a78810e4c4dab3ae8445fedad19c4d7cc80696a28925b619354`。正式部署运行：https://github.com/LiveDevLiberate/procface/actions/runs/37961063975 。发布公钥为 `U30NiFFqHG7qq96W1V34mHuPxs23qFiVp7R6eYw6gkQ=`；daemon 使用前应通过维护者确认此信任根。此次上线与下载校验不替代目标板验收。
+历史预览部署（已撤下）：2026-09-28 的 `v0.1.0-preview.1` 使用旧 HTML，SHA-256 为 `4ae7ab9fffb77a78810e4c4dab3ae8445fedad19c4d7cc80696a28925b619354`。双语部署运行：https://github.com/LiveDevLiberate/procface/actions/runs/38022424409 。发布公钥为 `U30NiFFqHG7qq96W1V34mHuPxs23qFiVp7R6eYw6gkQ=`；daemon 使用前应通过维护者确认此信任根。此次上线与下载校验不替代目标板验收。
 
 ## 前置条件
 
@@ -35,7 +35,7 @@ python3 tools/package_release.py \
 
 输出目录必须不存在。组装失败不会留下部分发布目录。成功后包含：
 
-- `assets/`：八个归档、独立 HTML、外部签名清单、公钥、LICENSE、版本索引和 SHA256SUMS，作为 Release 附件。
+- `assets/`：八个归档、独立 HTML、外部签名清单、公钥、LICENSE、版本索引和 SHA256SUMS，作为 Release 附件；归档含中英文 README、发布指南、紧凑协议和国际化说明。
 - `pages/`：同一 HTML 的 `index.html` 与 `procface-web.html`、外部签名清单、LICENSE 和 `.nojekyll`，作为静态站点部署目录。
 
 归档内 daemon 可通过 `--frontend-public-key` 指定可信公钥，也可构建时设置 `PROCFACE_RELEASE_KEY` 嵌入公钥。没有配置受信任公钥的 daemon 不会自动信任下载目录里的任意公钥。不要为正式发布启用 `--allow-unsigned-frontend`。
