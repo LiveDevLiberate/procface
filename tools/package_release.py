@@ -73,7 +73,7 @@ def main():
                 for source,dest in ((binary,'procface'),(ROOT/'LICENSE','LICENSE'),(ROOT/'README.md','README.md'),(ROOT/'README.en.md','README.en.md'),
                     (html,'procface-web.html'),(manifest,'frontend-manifest.json'),(assets/'frontend-public-key.txt','frontend-public-key.txt'),(build,'build.json')):
                     tar.add(source,arcname=name+'/'+dest)
-                for doc in ('i18n','release','compact-wire'):
+                for doc in ('usage','i18n','release','compact-wire'):
                     for suffix in ('.md','.en.md'):
                         path='docs/'+doc+suffix
                         tar.add(ROOT/path,arcname=name+'/'+path)
