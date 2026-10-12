@@ -48,6 +48,24 @@ Grafana 等外部监控系统 SHOULD 通过 daemon 的 Prometheus `/metrics` 端
 
 前端 MUST 使用 /api/v1/stream 的 SSE 接收实时样本，断线后 MUST 自动重连并记录断链区间。前端不得使用原生 EventSource 拼接 token 到 URL；应使用可设置 Authorization header 的 fetch 流式实现。
 
+### Requirement: Linux 子系统性能数据流图
+
+前端 MUST 提供 Linux 子系统级性能概览，并允许进入单个子系统的数据流图。概览只显示子系统状态和少量摘要指标；子系统图 MUST 使用节点表示组件、使用有方向连线表示组件之间的性能接口。节点内部显示组件指标，连线显示接口指标，不能把所有指标堆叠在同一层级。
+
+首版 MUST 提供 Scheduler、Memory、VFS/Filesystem、Block I/O、Networking、IRQ/SoftIRQ 和 Process 七个子系统入口。不可用子系统仍须保留入口并显示等待、缺失或具体状态原因。用户进入子系统图后，必须能够返回总览，且切换不得停止 SSE、清除 IndexedDB 历史或停止 Trace。
+
+### Requirement: 前端静态图定义
+
+组件、连线、布局、显示名称和 metric ID 绑定 MUST 由单体 HTML 前端静态维护。daemon MUST NOT 提供或解释组件图定义；前端 MUST 只使用统一 metrics schema 中的 metric、entity、unit 和 status 填充图形。新增或调整图布局不得要求 daemon 或 API 增加架构图接口。
+
+### Requirement: 节点和接口指标状态
+
+图中每个节点和连线 MUST 显示当前绑定指标的值、单位和状态；绑定多个指标时 MUST 显示摘要值并允许点击查看既有指标图表。unsupported、permission_denied、parse_error、stale、discontinuity、exited 和 incomplete MUST 使用可区分的文字或颜色状态，缺失值不得渲染为零。图例 MUST 说明颜色含义，颜色不能是唯一状态信息。
+
+### Requirement: 静态图交互与资源边界
+
+图形 MUST 内嵌在单体 HTML 中，不依赖 CDN、图形库或 daemon 新接口。前端 MUST 支持节点和连线的鼠标及键盘选择、返回子系统总览，并复用现有历史、断链 gap、导出和 SSE 订阅。离线打开 HTML 时，布局、节点名称、图例和无数据占位必须可用；只有 daemon 连接和实时值需要网络访问。
+
 
 
 
